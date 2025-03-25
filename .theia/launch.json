@@ -1,0 +1,14 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "ESD_Project",
+            "type": "ccs-debug",
+            "request": "launch",
+            "projectInfo": {
+                "name": "ESD_Project",
+                "resourceId": "/ESD_Project"
+            }
+        }
+    ]
+}
