@@ -6,11 +6,19 @@ extern void DisplayChar();
 extern void DisplayNumber();
 extern void StartDisplay();
 
+/////+++++/////+++++///// Button /////+++++/////+++++/////
+
 #define Button_StartStop  BIT1  // P1.1 Button
 #define Button_LapReset   BIT5  // P4.5 Button
 #define Button_Mode       BIT3  // P1.3 Button
 
+
+// 使用 volatile，防止编译器优化
+volatile bool start = false;
+
 volatile bool onClickButtonMode = false;
+
+/////+++++/////+++++///// Mode /////+++++/////+++++/////
 
 #define NormalMode       0
 #define TimeSettingMode  1
@@ -20,18 +28,23 @@ volatile bool onClickButtonMode = false;
 
 volatile unsigned int currentMode = 0;
 
-
-// 使用 volatile，防止编译器优化
-volatile bool start = false;
+/////+++++/////+++++///// Time /////+++++/////+++++/////
 
 volatile unsigned int chrono_milliseconds = 0;
 volatile unsigned int chrono_seconds      = 0;
 volatile unsigned int chrono_minutes      = 0;
 
-volatile unsigned int milliseconds = 0;
-volatile unsigned int seconds      = 0;
-volatile unsigned int minutes      = 0;
-volatile unsigned int hours        = 0;
+volatile unsigned int milliseconds  = 0;
+volatile unsigned int seconds       = 0;
+volatile unsigned int minutes       = 0;
+volatile unsigned int hours         = 0;
+volatile unsigned int week          = 1;
+
+/////+++++/////+++++///// Icon /////+++++/////+++++/////
+
+#define Empty 2
+#define MarkIcon 28
+
 
 int main(void)
 {
@@ -95,6 +108,12 @@ int main(void)
                 UpdateNormalTimer();
                 ShowNormalTimer();
                 break;
+
+            case TimeSettingMode:
+                UpdateNormalTimer();
+                ShowSettingTimer();
+                break;
+
             case ChronoMode:
                 UpdateStopwatchTimer();
                 ShowStopwatch();
@@ -122,8 +141,9 @@ void Init(){
 
     ResetChrono();
     
-    minutes = 14;
-    hours = 2;
+    minutes = 38;
+    hours = 14;
+    week = 1;
 }
 
 void ResetChrono(){
@@ -190,6 +210,11 @@ void UpdateNormalTimer(){
                 if (hours >= 24)
                 {
                     hours = 0;
+                    week++;
+                    if (week > 7)
+                    {
+                        week = 1;
+                    }
                 }
             }
         }
@@ -220,17 +245,41 @@ void ShowNormalTimer(){
     DisplayNumber((hours % 10), 10, 3);
 
     if ((seconds % 2) == 0)
-        DisplayChar(20, 10, 5);
+        DisplayChar(MarkIcon, 10, 5);
     else
-        DisplayChar(2, 10, 5);
+        DisplayChar(Empty, 10, 5);
 
     DisplayNumber((minutes / 10), 10, 6);
     DisplayNumber((minutes % 10), 10, 8);
 
-    //DisplayNumber((sec / 10), 10, 11);
-    //DisplayNumber((sec % 10), 10, 13);
-    //DisplayNumber((milliseconds / 100), 10, 11);
-    //DisplayNumber(((milliseconds / 10) % 10), 10, 13);
+    DisplayWeek(week, 10, 11);
+
+    StartDisplay();
+}
+
+void ShowSettingTimer(){
+    ClearDisplay();
+
+    if ((seconds % 2) == 0)
+    {
+        DisplayNumber((hours / 10), 10, 1);
+        DisplayNumber((hours % 10), 10, 3);
+    }
+    else
+    {
+        DisplayChar(Empty, 10, 1);
+        DisplayChar(Empty, 10, 2);
+        DisplayChar(Empty, 10, 3);
+        DisplayChar(Empty, 10, 4);
+    }
+
+    DisplayChar(MarkIcon, 10, 5);
+
+    DisplayNumber((minutes / 10), 10, 6);
+    DisplayNumber((minutes % 10), 10, 8);
+
+    DisplayWeek(week, 10, 11);
+
     StartDisplay();
 }
 
