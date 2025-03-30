@@ -16,12 +16,15 @@ void SetUpButton();
 void SwtichMode();
 void CheckOnClickButtonStartStop();
 void OnClickSetTime();
+void OnClickSetAlarm();
 void CheckOnClickButtonLapReset();
 void CheckOnClickButtonMode();
 void UpdateNormalTimer();
 void UpdateStopwatchTimer();
 void ShowNormalTimer();
 void ShowSettingTimer();
+void ShowAlarm();
+void ShowSettingAlarm();
 void ShowStopwatch();
 
 /////+++++/////+++++///// Button /////+++++/////+++++/////
@@ -36,7 +39,6 @@ volatile bool onClickButtonMode      = false;
 
 // 使用 volatile，防止编译器优化
 volatile bool start = false;
-
 
 /////+++++/////+++++///// Mode /////+++++/////+++++/////
 
@@ -64,6 +66,9 @@ volatile unsigned int currentTimeSetting = 0;
 volatile unsigned int chrono_milliseconds = 0;
 volatile unsigned int chrono_seconds      = 0;
 volatile unsigned int chrono_minutes      = 0;
+
+volatile unsigned int alarm_hours   = 7;
+volatile unsigned int alarm_minutes = 30;
 
 volatile unsigned int milliseconds  = 0;
 volatile unsigned int seconds       = 0;
@@ -116,7 +121,6 @@ int main(void)
 
     _BIS_SR(GIE);
 
-
     while (1) {
         CheckOnClickButtonStartStop();
         CheckOnClickButtonLapReset();
@@ -124,17 +128,24 @@ int main(void)
 
         volatile unsigned int i;
 
-        for (i = 0; i < 100; i++) {}
+        for (i = 0; i < 50; i++) {}
+
+        UpdateNormalTimer();
 
         switch (currentMode) {
             case NormalMode:
-                UpdateNormalTimer();
-                ShowNormalTimer();
+                if (onClickButtonLapReset)
+                    ShowAlarm();
+                else
+                    ShowNormalTimer();
                 break;
 
             case TimeSettingMode:
-                UpdateNormalTimer();
                 ShowSettingTimer();
+                break;
+
+            case AlarmSettingMode:
+                ShowSettingAlarm();
                 break;
 
             case ChronoMode:
@@ -166,8 +177,10 @@ void Init(){
     ResetTimeSetting();
     
     minutes = 38;
-    hours = 14;
-    week = 1;
+    hours   = 14;
+    week    = 1;
+    alarm_hours   = 7;
+    alarm_minutes = 30;
 }
 
 void ResetChrono(){
@@ -212,6 +225,9 @@ void CheckOnClickButtonStartStop(){
             if (currentMode == TimeSettingMode)
                 OnClickSetTime();
 
+            if (currentMode == AlarmSettingMode)
+                OnClickSetAlarm();
+
             if (currentMode == ChronoMode){
                 start = !start;
             }
@@ -242,6 +258,21 @@ void OnClickSetTime(){
     }
 }
 
+void OnClickSetAlarm(){
+    switch (currentTimeSetting) {
+        case TimeSetting_Hour:
+            alarm_hours++;
+            if (alarm_hours >= HourMax)
+                alarm_hours = 0;
+            break;
+        case TimeSetting_Min:
+            alarm_minutes++;
+            if (alarm_minutes >= MinMax)
+                alarm_minutes = 0;
+            break;
+    }
+}
+
 void CheckOnClickButtonLapReset(){
     if ((P4IN & Button_LapReset) == 0)
     {
@@ -257,6 +288,12 @@ void CheckOnClickButtonLapReset(){
             if (currentMode == TimeSettingMode){
                 currentTimeSetting++;
                 if (currentTimeSetting > TimeSetting_Week)
+                    currentTimeSetting = TimeSetting_Hour;
+            }
+
+            if (currentMode == AlarmSettingMode){
+                currentTimeSetting++;
+                if (currentTimeSetting > TimeSetting_Min)
                     currentTimeSetting = TimeSetting_Hour;
             }
 
@@ -294,6 +331,9 @@ void SwtichMode(){
     
     switch (currentMode) {
         case TimeSettingMode:
+            ResetTimeSetting();
+            break;
+        case AlarmSettingMode:
             ResetTimeSetting();
             break;
         case ChronoMode:
@@ -424,6 +464,73 @@ void ShowSettingTimer(){
         DisplayWeek(week, TimerMargin, 11);
     }
 
+    StartDisplay();
+}
+
+void ShowAlarm(){
+    ClearDisplay();
+
+    DisplayTime((alarm_hours / 10), TimerMargin, 1);
+    DisplayTime((alarm_hours % 10), TimerMargin, 3);
+
+    DisplayChar(MarkIcon, TimerMargin, 5);
+
+    DisplayTime((alarm_minutes / 10), TimerMargin, 6);
+    DisplayTime((alarm_minutes % 10), TimerMargin, 8);
+
+    DisplayChar(Empty, TimerMargin, 11);
+    DisplayChar(Empty, TimerMargin, 12);
+    DisplayChar(Empty, TimerMargin, 13);
+    DisplayChar(Empty, TimerMargin, 14);
+
+    StartDisplay();
+}
+
+void ShowSettingAlarm(){
+    ClearDisplay();
+
+    if (currentTimeSetting == TimeSetting_Hour){
+        if ((seconds % 2) == 0)
+        {
+            DisplayTime((alarm_hours / 10), TimerMargin, 1);
+            DisplayTime((alarm_hours % 10), TimerMargin, 3);
+        }
+        else
+        {
+            DisplayChar(Empty, TimerMargin, 1);
+            DisplayChar(Empty, TimerMargin, 2);
+            DisplayChar(Empty, TimerMargin, 3);
+            DisplayChar(Empty, TimerMargin, 4);
+        }
+    } else {
+        DisplayTime((alarm_hours / 10), TimerMargin, 1);
+        DisplayTime((alarm_hours % 10), TimerMargin, 3);
+    }
+
+    DisplayChar(MarkIcon, TimerMargin, 5);
+
+    if (currentMode == AlarmSettingMode && currentTimeSetting == TimeSetting_Min){
+        if ((seconds % 2) == 0)
+        {
+            DisplayTime((alarm_minutes / 10), TimerMargin, 6);
+            DisplayTime((alarm_minutes % 10), TimerMargin, 8);
+        }
+        else
+        {
+            DisplayChar(Empty, TimerMargin, 6);
+            DisplayChar(Empty, TimerMargin, 7);
+            DisplayChar(Empty, TimerMargin, 8);
+            DisplayChar(Empty, TimerMargin, 9);
+        }
+    } else {
+        DisplayTime((alarm_minutes / 10), TimerMargin, 6);
+        DisplayTime((alarm_minutes % 10), TimerMargin, 8);
+    }
+
+    DisplayChar(Empty, TimerMargin, 11);
+    DisplayChar(Empty, TimerMargin, 12);
+    DisplayChar(Empty, TimerMargin, 13);
+    DisplayChar(Empty, TimerMargin, 14);
 
     StartDisplay();
 }
