@@ -8,24 +8,33 @@ extern void DisplayChar();
 extern void DisplayTime();
 extern void DisplayWeek();
 extern void StartDisplay();
+extern int  GetMonthEndDay();
 
 void Init();
 void ResetChrono();
 void ResetTimeSetting();
 void SetUpButton();
 void SwtichMode();
+
 void CheckOnClickButtonStartStop();
-void OnClickSetTime();
-void OnClickSetAlarm();
 void CheckOnClickButtonLapReset();
 void CheckOnClickButtonMode();
+void OnClickSetTime();
+void OnClickSetAlarm();
+
 void UpdateNormalTimer();
 void UpdateStopwatchTimer();
-void ShowNormalTimer();
-void ShowSettingTimer();
+
+void ShowTimer();
+void ShowCalender();
 void ShowAlarm();
+void ShowSettingTimer();
+void ShowSettingCalender();
 void ShowSettingAlarm();
 void ShowStopwatch();
+
+void DisplayDay();
+void DisplayMonth();
 
 /////+++++/////+++++///// Button /////+++++/////+++++/////
 
@@ -37,8 +46,7 @@ volatile bool onClickButtonStartStop = false;
 volatile bool onClickButtonLapReset  = false;
 volatile bool onClickButtonMode      = false;
 
-// 使用 volatile，防止编译器优化
-volatile bool start = false;
+volatile bool startStopWatch = false;
 
 /////+++++/////+++++///// Mode /////+++++/////+++++/////
 
@@ -47,21 +55,23 @@ volatile bool start = false;
 #define TimeSettingMode  1
 #define AlarmSettingMode 2
 #define ChronoMode       3
-//#define AlarmMode        
 
 // TimeSetting :
-#define TimeSetting_Hour 0
-#define TimeSetting_Min  1
-#define TimeSetting_Week 2
+#define TimeSetting_Hour   0
+#define TimeSetting_Min    1
+#define TimeSetting_Week   2
+#define TimeSetting_Day    3
+#define TimeSetting_Month  4
 
 volatile unsigned int currentMode        = 0;
 volatile unsigned int currentTimeSetting = 0;
 
 /////+++++/////+++++///// Time /////+++++/////+++++/////
 
-#define WeekMax  7
-#define HourMax 24
-#define MinMax  60
+#define MonthMax  12
+#define WeekMax    7
+#define HourMax   24
+#define MinMax    60
 
 volatile unsigned int chrono_milliseconds = 0;
 volatile unsigned int chrono_seconds      = 0;
@@ -75,14 +85,16 @@ volatile unsigned int seconds       = 0;
 volatile unsigned int minutes       = 0;
 volatile unsigned int hours         = 0;
 volatile unsigned int week          = 1;
+volatile unsigned int day           = 2;
+volatile unsigned int month         = 4;
+volatile         bool isLeapYear    = false;
 
 /////+++++/////+++++///// Display /////+++++/////+++++/////
-
 
 #define Empty       2
 #define TimerMargin 10
 #define MarkIcon    28
-
+#define lineIcon    29
 
 int main(void)
 {
@@ -136,12 +148,17 @@ int main(void)
             case NormalMode:
                 if (onClickButtonLapReset)
                     ShowAlarm();
+                else if (onClickButtonStartStop)
+                    ShowCalender();
                 else
-                    ShowNormalTimer();
+                    ShowTimer();
                 break;
 
             case TimeSettingMode:
-                ShowSettingTimer();
+                if (currentTimeSetting < TimeSetting_Day)
+                    ShowSettingTimer();
+                else
+                    ShowSettingCalender();
                 break;
 
             case AlarmSettingMode:
@@ -161,7 +178,7 @@ int main(void)
 __interrupt void Timer_A0_ISR(void) 
 {
     milliseconds++;
-    if (start)
+    if (startStopWatch)
         chrono_milliseconds++;
 }
 
@@ -176,9 +193,12 @@ void Init(){
     ResetChrono();
     ResetTimeSetting();
     
-    minutes = 38;
-    hours   = 14;
-    week    = 1;
+    minutes       = 38;
+    hours         = 14;
+    week          = 1;
+    day           = 2;
+    month         = 4;
+    isLeapYear    = false;
     alarm_hours   = 7;
     alarm_minutes = 30;
 }
@@ -229,7 +249,7 @@ void CheckOnClickButtonStartStop(){
                 OnClickSetAlarm();
 
             if (currentMode == ChronoMode){
-                start = !start;
+                startStopWatch = !startStopWatch;
             }
 
             if (currentMode > ChronoMode)
@@ -245,15 +265,29 @@ void OnClickSetTime(){
             if (hours >= HourMax)
                 hours = 0;
             break;
+
         case TimeSetting_Min:
             minutes++;
             if (minutes >= MinMax)
                 minutes = 0;
             break;
+
         case TimeSetting_Week:
             week++;
-            if (week >= WeekMax)
+            if (week > WeekMax)
                 week = 1;
+            break;
+
+        case TimeSetting_Day:
+            day++;
+            if (day > GetMonthEndDay(month))
+                day = 1;
+            break;
+
+        case TimeSetting_Month:
+            month++;
+            if (month > MonthMax)
+                month = 1;
             break;
     }
 }
@@ -287,7 +321,7 @@ void CheckOnClickButtonLapReset(){
             
             if (currentMode == TimeSettingMode){
                 currentTimeSetting++;
-                if (currentTimeSetting > TimeSetting_Week)
+                if (currentTimeSetting > TimeSetting_Month)
                     currentTimeSetting = TimeSetting_Hour;
             }
 
@@ -298,7 +332,8 @@ void CheckOnClickButtonLapReset(){
             }
 
             if (currentMode == ChronoMode){
-
+                if (!startStopWatch)
+                    ResetChrono();
             }
 
             if (currentMode > ChronoMode)
@@ -361,7 +396,18 @@ void UpdateNormalTimer(){
                 if (hours >= HourMax)
                 {
                     hours = 0;
+                    day++;
                     week++;
+                    
+                    if (day > GetMonthEndDay(month, isLeapYear)){
+                        day = 1;
+                        month++;
+                        if (month > MonthMax)
+                        {
+                            month = 1;
+                        }
+                    }
+
                     if (week > WeekMax)
                     {
                         week = 1;
@@ -389,7 +435,7 @@ void UpdateStopwatchTimer(){
     }
 }
 
-void ShowNormalTimer(){
+void ShowTimer(){
     ClearDisplay();
 
     DisplayTime((hours / 10), TimerMargin, 1);
@@ -403,6 +449,39 @@ void ShowNormalTimer(){
     DisplayTime((minutes / 10), TimerMargin, 6);
     DisplayTime((minutes % 10), TimerMargin, 8);
     DisplayWeek(week, TimerMargin, 11);
+
+    StartDisplay();
+}
+
+void ShowCalender(){
+    ClearDisplay();
+
+    DisplayDay();
+
+    DisplayChar(lineIcon, TimerMargin, 5);
+
+    DisplayMonth();
+
+    DisplayWeek(week, TimerMargin, 11);
+
+    StartDisplay();
+}
+
+void ShowAlarm(){
+    ClearDisplay();
+
+    DisplayTime((alarm_hours / 10), TimerMargin, 1);
+    DisplayTime((alarm_hours % 10), TimerMargin, 3);
+
+    DisplayChar(MarkIcon, TimerMargin, 5);
+
+    DisplayTime((alarm_minutes / 10), TimerMargin, 6);
+    DisplayTime((alarm_minutes % 10), TimerMargin, 8);
+
+    DisplayChar(Empty, TimerMargin, 11);
+    DisplayChar(Empty, TimerMargin, 12);
+    DisplayChar(Empty, TimerMargin, 13);
+    DisplayChar(Empty, TimerMargin, 14);
 
     StartDisplay();
 }
@@ -467,21 +546,48 @@ void ShowSettingTimer(){
     StartDisplay();
 }
 
-void ShowAlarm(){
+void ShowSettingCalender(){
     ClearDisplay();
 
-    DisplayTime((alarm_hours / 10), TimerMargin, 1);
-    DisplayTime((alarm_hours % 10), TimerMargin, 3);
+    if (currentTimeSetting == TimeSetting_Day){
+        if ((seconds % 2) == 0)
+        {
+            DisplayDay();
+        }
+        else
+        {
+            DisplayChar(Empty, TimerMargin, 1);
+            DisplayChar(Empty, TimerMargin, 2);
+            DisplayChar(Empty, TimerMargin, 3);
+            DisplayChar(Empty, TimerMargin, 4);
+        }
+    } 
+    else 
+    {
+        DisplayDay();
+    }
 
-    DisplayChar(MarkIcon, TimerMargin, 5);
+    DisplayChar(lineIcon, TimerMargin, 5);
 
-    DisplayTime((alarm_minutes / 10), TimerMargin, 6);
-    DisplayTime((alarm_minutes % 10), TimerMargin, 8);
+    if (currentTimeSetting == TimeSetting_Month){
+        if ((seconds % 2) == 0)
+        {
+            DisplayMonth();
+        }
+        else
+        {
+            DisplayChar(Empty, TimerMargin, 6);
+            DisplayChar(Empty, TimerMargin, 7);
+            DisplayChar(Empty, TimerMargin, 8);
+            DisplayChar(Empty, TimerMargin, 9);
+        }
+    } 
+    else
+    {
+        DisplayMonth();
+    }
 
-    DisplayChar(Empty, TimerMargin, 11);
-    DisplayChar(Empty, TimerMargin, 12);
-    DisplayChar(Empty, TimerMargin, 13);
-    DisplayChar(Empty, TimerMargin, 14);
+    DisplayWeek(week, TimerMargin, 11);
 
     StartDisplay();
 }
@@ -544,4 +650,24 @@ void ShowStopwatch(){
     DisplayTime((chrono_milliseconds / 100), TimerMargin, 11);
     DisplayTime(((chrono_milliseconds / 10) % 10), TimerMargin, 13);
     StartDisplay();
+}
+
+void DisplayDay(){
+    if ((day / 10) < 1){
+        DisplayChar(Empty, TimerMargin, 1);
+        DisplayChar(Empty, TimerMargin, 2);
+    }
+    else
+        DisplayTime((day / 10), TimerMargin, 1);
+    DisplayTime((day % 10), TimerMargin, 3);
+}
+
+void DisplayMonth(){
+    if ((month / 10) < 1){
+        DisplayChar(Empty, TimerMargin, 6);
+        DisplayChar(Empty, TimerMargin, 7);
+    }
+    else
+        DisplayTime((month / 10), TimerMargin, 6);
+    DisplayTime((month % 10), TimerMargin, 8);
 }

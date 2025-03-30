@@ -5,37 +5,22 @@
 SHELL = cmd.exe
 
 # Add inputs and outputs from these tool invocations to the build variables 
-CMD_SRCS += \
-../lnk_msp430fr5969.cmd 
-
 C_SRCS += \
-../Calendar.c \
-../LCDHandler.c \
-../main.c 
+../targetConfigs/Calendar.c 
 
 C_DEPS += \
-./Calendar.d \
-./LCDHandler.d \
-./main.d 
+./targetConfigs/Calendar.d 
 
 OBJS += \
-./Calendar.obj \
-./LCDHandler.obj \
-./main.obj 
+./targetConfigs/Calendar.obj 
 
 OBJS__QUOTED += \
-"Calendar.obj" \
-"LCDHandler.obj" \
-"main.obj" 
+"targetConfigs\Calendar.obj" 
 
 C_DEPS__QUOTED += \
-"Calendar.d" \
-"LCDHandler.d" \
-"main.d" 
+"targetConfigs\Calendar.d" 
 
 C_SRCS__QUOTED += \
-"../Calendar.c" \
-"../LCDHandler.c" \
-"../main.c" 
+"../targetConfigs/Calendar.c" 
 
 
