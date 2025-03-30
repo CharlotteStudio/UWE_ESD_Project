@@ -1,10 +1,28 @@
 #include <msp430.h>
 #include <stdbool.h>
 
+/////+++++/////+++++///// Function /////+++++/////+++++/////
+
 extern void ClearDisplay();
 extern void DisplayChar();
-extern void DisplayNumber();
+extern void DisplayTime();
+extern void DisplayWeek();
 extern void StartDisplay();
+
+void Init();
+void ResetChrono();
+void ResetTimeSetting();
+void SetUpButton();
+void SwtichMode();
+void CheckOnClickButtonStartStop();
+void OnClickSetTime();
+void CheckOnClickButtonLapReset();
+void CheckOnClickButtonMode();
+void UpdateNormalTimer();
+void UpdateStopwatchTimer();
+void ShowNormalTimer();
+void ShowSettingTimer();
+void ShowStopwatch();
 
 /////+++++/////+++++///// Button /////+++++/////+++++/////
 
@@ -12,23 +30,36 @@ extern void StartDisplay();
 #define Button_LapReset   BIT5  // P4.5 Button
 #define Button_Mode       BIT3  // P1.3 Button
 
+volatile bool onClickButtonStartStop = false;
+volatile bool onClickButtonLapReset  = false;
+volatile bool onClickButtonMode      = false;
 
 // 使用 volatile，防止编译器优化
 volatile bool start = false;
 
-volatile bool onClickButtonMode = false;
 
 /////+++++/////+++++///// Mode /////+++++/////+++++/////
 
+// Mode :
 #define NormalMode       0
 #define TimeSettingMode  1
 #define AlarmSettingMode 2
 #define ChronoMode       3
 //#define AlarmMode        
 
-volatile unsigned int currentMode = 0;
+// TimeSetting :
+#define TimeSetting_Hour 0
+#define TimeSetting_Min  1
+#define TimeSetting_Week 2
+
+volatile unsigned int currentMode        = 0;
+volatile unsigned int currentTimeSetting = 0;
 
 /////+++++/////+++++///// Time /////+++++/////+++++/////
+
+#define WeekMax  7
+#define HourMax 24
+#define MinMax  60
 
 volatile unsigned int chrono_milliseconds = 0;
 volatile unsigned int chrono_seconds      = 0;
@@ -40,10 +71,12 @@ volatile unsigned int minutes       = 0;
 volatile unsigned int hours         = 0;
 volatile unsigned int week          = 1;
 
-/////+++++/////+++++///// Icon /////+++++/////+++++/////
+/////+++++/////+++++///// Display /////+++++/////+++++/////
 
-#define Empty 2
-#define MarkIcon 28
+
+#define Empty       2
+#define TimerMargin 10
+#define MarkIcon    28
 
 
 int main(void)
@@ -85,22 +118,12 @@ int main(void)
 
 
     while (1) {
-
-        if ((P1IN & Button_StartStop) == 0)
-        {
-            start = true;
-            //printf("Button_StartStop");
-        }
-
-        if ((P4IN & Button_LapReset) == 0)
-        {
-            start = false;
-            //printf("Button_StartStop");
-        }
-
+        CheckOnClickButtonStartStop();
+        CheckOnClickButtonLapReset();
         CheckOnClickButtonMode();
 
         volatile unsigned int i;
+
         for (i = 0; i < 100; i++) {}
 
         switch (currentMode) {
@@ -136,10 +159,11 @@ void Init(){
     WDTCTL = WDTPW | WDTHOLD;   // stop watchdog timer
     PM5CTL0 &= ~LOCKLPM5;
 
-    currentMode = NormalMode;
-    onClickButtonMode = false;
+    currentMode        = NormalMode;
+    onClickButtonMode  = false;
 
     ResetChrono();
+    ResetTimeSetting();
     
     minutes = 38;
     hours = 14;
@@ -150,6 +174,10 @@ void ResetChrono(){
     chrono_milliseconds = 0;
     chrono_seconds      = 0;
     chrono_minutes      = 0;
+}
+
+void ResetTimeSetting(){
+    currentTimeSetting = TimeSetting_Hour;
 }
 
 void SetUpButton(){
@@ -169,6 +197,79 @@ void SetUpButton(){
     P1OUT |= Button_Mode;            // set P1.3 up
 }
 
+void CheckOnClickButtonStartStop(){
+    if ((P1IN & Button_StartStop) == 0)
+    {
+        if (!onClickButtonMode)
+            onClickButtonStartStop = true;
+    } 
+    else 
+    {
+        if (onClickButtonStartStop)
+        {
+            onClickButtonStartStop = false;
+        
+            if (currentMode == TimeSettingMode)
+                OnClickSetTime();
+
+            if (currentMode == ChronoMode){
+                start = !start;
+            }
+
+            if (currentMode > ChronoMode)
+                currentMode = NormalMode;
+        }
+    }
+}
+
+void OnClickSetTime(){
+    switch (currentTimeSetting) {
+        case TimeSetting_Hour:
+            hours++;
+            if (hours >= HourMax)
+                hours = 0;
+            break;
+        case TimeSetting_Min:
+            minutes++;
+            if (minutes >= MinMax)
+                minutes = 0;
+            break;
+        case TimeSetting_Week:
+            week++;
+            if (week >= WeekMax)
+                week = 1;
+            break;
+    }
+}
+
+void CheckOnClickButtonLapReset(){
+    if ((P4IN & Button_LapReset) == 0)
+    {
+        if (!onClickButtonLapReset)
+            onClickButtonLapReset = true;
+    } 
+    else 
+    {
+        if (onClickButtonLapReset)
+        {
+            onClickButtonLapReset = false;
+            
+            if (currentMode == TimeSettingMode){
+                currentTimeSetting++;
+                if (currentTimeSetting > TimeSetting_Week)
+                    currentTimeSetting = TimeSetting_Hour;
+            }
+
+            if (currentMode == ChronoMode){
+
+            }
+
+            if (currentMode > ChronoMode)
+                currentMode = NormalMode;
+        }
+    }
+}
+
 void CheckOnClickButtonMode(){
     if ((P1IN & Button_Mode) == 0)
     {
@@ -180,15 +281,25 @@ void CheckOnClickButtonMode(){
         if (onClickButtonMode)
         {
             onClickButtonMode = false;
-            currentMode++;
-            
-            if (currentMode == ChronoMode)
-                ResetChrono();
-
-            if (currentMode > ChronoMode)
-                currentMode = NormalMode;
+            SwtichMode();
         }
     }
+}
+
+void SwtichMode(){
+    currentMode++;
+
+    if (currentMode > ChronoMode)
+        currentMode = NormalMode;
+    
+    switch (currentMode) {
+        case TimeSettingMode:
+            ResetTimeSetting();
+            break;
+        case ChronoMode:
+            ResetChrono();
+            break;
+    } 
 }
 
 void UpdateNormalTimer(){
@@ -197,21 +308,21 @@ void UpdateNormalTimer(){
         milliseconds = 0;
         seconds++;
         
-        if(seconds >= 60)
+        if(seconds >= MinMax)
         {
             seconds = 0;
             minutes++;
             
-            if(minutes >= 60)
+            if(minutes >= MinMax)
             {
                 minutes = 0;
                 hours++;
 
-                if (hours >= 24)
+                if (hours >= HourMax)
                 {
                     hours = 0;
                     week++;
-                    if (week > 7)
+                    if (week > WeekMax)
                     {
                         week = 1;
                     }
@@ -241,18 +352,17 @@ void UpdateStopwatchTimer(){
 void ShowNormalTimer(){
     ClearDisplay();
 
-    DisplayNumber((hours / 10), 10, 1);
-    DisplayNumber((hours % 10), 10, 3);
+    DisplayTime((hours / 10), TimerMargin, 1);
+    DisplayTime((hours % 10), TimerMargin, 3);
 
     if ((seconds % 2) == 0)
-        DisplayChar(MarkIcon, 10, 5);
+        DisplayChar(MarkIcon, TimerMargin, 5);
     else
-        DisplayChar(Empty, 10, 5);
+        DisplayChar(Empty, TimerMargin, 5);
 
-    DisplayNumber((minutes / 10), 10, 6);
-    DisplayNumber((minutes % 10), 10, 8);
-
-    DisplayWeek(week, 10, 11);
+    DisplayTime((minutes / 10), TimerMargin, 6);
+    DisplayTime((minutes % 10), TimerMargin, 8);
+    DisplayWeek(week, TimerMargin, 11);
 
     StartDisplay();
 }
@@ -260,36 +370,71 @@ void ShowNormalTimer(){
 void ShowSettingTimer(){
     ClearDisplay();
 
-    if ((seconds % 2) == 0)
-    {
-        DisplayNumber((hours / 10), 10, 1);
-        DisplayNumber((hours % 10), 10, 3);
+    if (currentTimeSetting == TimeSetting_Hour){
+        if ((seconds % 2) == 0)
+        {
+            DisplayTime((hours / 10), TimerMargin, 1);
+            DisplayTime((hours % 10), TimerMargin, 3);
+        }
+        else
+        {
+            DisplayChar(Empty, TimerMargin, 1);
+            DisplayChar(Empty, TimerMargin, 2);
+            DisplayChar(Empty, TimerMargin, 3);
+            DisplayChar(Empty, TimerMargin, 4);
+        }
+    } else {
+        DisplayTime((hours / 10), TimerMargin, 1);
+        DisplayTime((hours % 10), TimerMargin, 3);
     }
-    else
-    {
-        DisplayChar(Empty, 10, 1);
-        DisplayChar(Empty, 10, 2);
-        DisplayChar(Empty, 10, 3);
-        DisplayChar(Empty, 10, 4);
+
+    DisplayChar(MarkIcon, TimerMargin, 5);
+
+    if (currentTimeSetting == TimeSetting_Min){
+        if ((seconds % 2) == 0)
+        {
+            DisplayTime((minutes / 10), TimerMargin, 6);
+            DisplayTime((minutes % 10), TimerMargin, 8);
+        }
+        else
+        {
+            DisplayChar(Empty, TimerMargin, 6);
+            DisplayChar(Empty, TimerMargin, 7);
+            DisplayChar(Empty, TimerMargin, 8);
+            DisplayChar(Empty, TimerMargin, 9);
+        }
+    } else {
+        DisplayTime((minutes / 10), TimerMargin, 6);
+        DisplayTime((minutes % 10), TimerMargin, 8);
     }
 
-    DisplayChar(MarkIcon, 10, 5);
+    if (currentTimeSetting == TimeSetting_Week){
+        if ((seconds % 2) == 0)
+        {
+            DisplayWeek(week, TimerMargin, 11);
+        }
+        else
+        {
+            DisplayChar(Empty, TimerMargin, 11);
+            DisplayChar(Empty, TimerMargin, 12);
+            DisplayChar(Empty, TimerMargin, 13);
+            DisplayChar(Empty, TimerMargin, 14);
+        }
+    } else {
+        DisplayWeek(week, TimerMargin, 11);
+    }
 
-    DisplayNumber((minutes / 10), 10, 6);
-    DisplayNumber((minutes % 10), 10, 8);
-
-    DisplayWeek(week, 10, 11);
 
     StartDisplay();
 }
 
 void ShowStopwatch(){
     ClearDisplay();
-    DisplayNumber((chrono_minutes / 10), 10, 1);
-    DisplayNumber((chrono_minutes % 10), 10, 3);
-    DisplayNumber((chrono_seconds / 10), 10, 6);
-    DisplayNumber((chrono_seconds % 10), 10, 8);
-    DisplayNumber((chrono_milliseconds / 100), 10, 11);
-    DisplayNumber(((chrono_milliseconds / 10) % 10), 10, 13);
+    DisplayTime((chrono_minutes / 10), TimerMargin, 1);
+    DisplayTime((chrono_minutes % 10), TimerMargin, 3);
+    DisplayTime((chrono_seconds / 10), TimerMargin, 6);
+    DisplayTime((chrono_seconds % 10), TimerMargin, 8);
+    DisplayTime((chrono_milliseconds / 100), TimerMargin, 11);
+    DisplayTime(((chrono_milliseconds / 10) % 10), TimerMargin, 13);
     StartDisplay();
 }

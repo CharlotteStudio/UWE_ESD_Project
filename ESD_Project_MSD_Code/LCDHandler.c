@@ -48,13 +48,7 @@ void DisplayChar(int num, int startRow, int startColumn)
             DisplayBuffer[row + startRow][startColumn] = ~Font[row][column];
 }
 
-void DisplayWeek(int week, int startRow, int startColumn){
-    int startIndex = 16 + (week * 4);
-    DisplayNumber(startIndex / 2, startRow, startColumn);
-    DisplayNumber((startIndex + 2) / 2, startRow, startColumn + 2);
-}
-
-void DisplayNumber(int num, int startRow, int startColumn)
+void DisplayTime(int num, int startRow, int startColumn)
 {
     int firstColumn = num * 2;
     int row, column;
@@ -69,7 +63,26 @@ void DisplayNumber(int num, int startRow, int startColumn)
         }
 }
 
+void DisplayWeek(int week, int startRow, int startColumn){
+    int startIndex = 16 + (week * 4);
+    DisplayTime(startIndex / 2, startRow, startColumn);
+    DisplayTime((startIndex + 2) / 2, startRow, startColumn + 2);
+}
 
+char reverse(char inchar)
+{
+    char outchar;
+    outchar = 0;
+    if ((inchar & BIT0) > 0) outchar |= BIT7;
+    if ((inchar & BIT1) > 0) outchar |= BIT6;
+    if ((inchar & BIT2) > 0) outchar |= BIT5;
+    if ((inchar & BIT3) > 0) outchar |= BIT4;
+    if ((inchar & BIT4) > 0) outchar |= BIT3;
+    if ((inchar & BIT5) > 0) outchar |= BIT2;
+    if ((inchar & BIT6) > 0) outchar |= BIT1;
+    if ((inchar & BIT7) > 0) outchar |= BIT0;
+    return outchar;
+}
 
 void StartDisplay()
 {
@@ -144,19 +157,4 @@ void ClearDisplay()
     for (i = 0; i < LCDSize; i++)
         for(j = 0; j < ColumnSize; j++)
             DisplayBuffer[i][j] = 0xFF;
-}
-
-char reverse(char inchar)
-{
-    char outchar;
-    outchar = 0;
-    if ((inchar & BIT0) > 0) outchar |= BIT7;
-    if ((inchar & BIT1) > 0) outchar |= BIT6;
-    if ((inchar & BIT2) > 0) outchar |= BIT5;
-    if ((inchar & BIT3) > 0) outchar |= BIT4;
-    if ((inchar & BIT4) > 0) outchar |= BIT3;
-    if ((inchar & BIT5) > 0) outchar |= BIT2;
-    if ((inchar & BIT6) > 0) outchar |= BIT1;
-    if ((inchar & BIT7) > 0) outchar |= BIT0;
-    return outchar;
 }
