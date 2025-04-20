@@ -93,8 +93,8 @@ volatile         bool isLeapYear    = false;
 
 #define Empty       2
 #define TimerMargin 10
-#define MarkIcon    28
-#define lineIcon    29
+#define MarkIcon    48
+#define lineIcon    49
 
 int main(void)
 {
@@ -140,7 +140,7 @@ int main(void)
 
         volatile unsigned int i;
 
-        for (i = 0; i < 50; i++) {}
+        for (i = 0; i < 100; i++) {}
 
         UpdateNormalTimer();
 
