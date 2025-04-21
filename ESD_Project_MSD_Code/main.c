@@ -42,6 +42,7 @@ void URAT_Send_Value();
 void HandleURATCommand();
 
 void SetUpTimeByTimestamp();
+void SetUpAlarmByTimestamp();
 void ParseString();
 
 /////+++++/////+++++///// Button /////+++++/////+++++/////
@@ -804,34 +805,58 @@ void URAT_Send_Value(int value) {
     UCA0TXBUF = '\n';
 }
 
+// Command
+// 1 -> Set time
+// 2 -> On Off Auto update
+// 3 -> Set Alarm
+// 4 -> On/Off Alarm
+// 5 -> Start / Stop Buzzer
 void HandleURATCommand(){
     if (receivedEnd)
     {
-        SetUpTimeByTimestamp(receivedBuffer);
+        int messageParts[8];
+        ParseString(receivedBuffer, messageParts);
+
+        switch (messageParts[0]) {
+            case 1:
+                SetUpTimeByTimestamp(messageParts);
+                break;
+
+            case 3:
+                SetUpAlarmByTimestamp(messageParts);
+                break;
+        }
+
         receivedEnd = false;
     }
 }
 
-void SetUpTimeByTimestamp(const char *message){
-    int timestampParts[7];
-    ParseString(message, timestampParts);
-    int year = timestampParts[0];
-    month = timestampParts[1];
-    day = timestampParts[2];
-    week = timestampParts[3];
-    hours = timestampParts[4];
-    minutes = timestampParts[5];
-    seconds = timestampParts[6];
+void SetUpTimeByTimestamp(int message[8]){
+    int year = message[1];
+    month    = message[2];
+    day      = message[3];
+    week     = message[4];
+    hours    = message[5];
+    minutes  = message[6];
+    seconds  = message[7];
+}
+
+void SetUpAlarmByTimestamp(int message[8]){
+    alarm_hours   = message[1];
+    alarm_minutes = message[2];
 }
 
 void ParseString(const char *input, int *output) {
     int value = 0;
     int index = 0;
-    while (*input != '\0') {
-        if (*input == ',') {
+    while (*input != '\0')
+    {
+        if (*input == ',')
+        {
             output[index++] = value;
             value = 0;
-        } else if (*input >= '0' && *input <= '9') {
+        } else if (*input >= '0' && *input <= '9')
+        {
             value = value * 10 + (*input - '0');
         }
         input++;
