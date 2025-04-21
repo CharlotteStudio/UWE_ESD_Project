@@ -39,6 +39,7 @@ void DisplayMonth();
 void InitURAT();
 void URAT_Send_String();
 void URAT_Send_Value();
+void HandleURATCommand();
 
 void SetUpTimeByTimestamp();
 void ParseString();
@@ -153,9 +154,6 @@ int main(void)
 
     _BIS_SR(GIE);
 
-    char* message = "2025,4,21,7,15,50,10";
-    SetUpTimeByTimestamp(message);
-
     while (1) {
         CheckOnClickButtonStartStop();
         CheckOnClickButtonLapReset();
@@ -165,6 +163,7 @@ int main(void)
 
         for (i = 0; i < 100; i++) {}
 
+        HandleURATCommand();
         UpdateNormalTimer();
 
         switch (currentMode) {
@@ -803,6 +802,14 @@ void URAT_Send_Value(int value) {
     // Send a newline or other delimiter if needed
     while (!(UCA0IFG & UCTXIFG));
     UCA0TXBUF = '\n';
+}
+
+void HandleURATCommand(){
+    if (receivedEnd)
+    {
+        SetUpTimeByTimestamp(receivedBuffer);
+        receivedEnd = false;
+    }
 }
 
 void SetUpTimeByTimestamp(const char *message){

@@ -1,13 +1,18 @@
-/* 
- * Compatible ESP32 & ESP8266
- * Get the current time from internet (NTP)
- * 
- * Resource : https://randomnerdtutorials.com/esp32-date-time-ntp-client-server-arduino/
- */
+#include "SerialRead_Header.h"
+
+// For Testing
+#include "ST7735_Header.h"
+#include "Buzzer_Header.h"
 
 #include <ESP8266WiFi.h>
 #include <ESP8266WiFiMulti.h>
 #include "NTP_Timer.h"
+
+//
+
+#define BUZZER_PIN 16 // D0
+
+String str = "";
 
 ///// WiFi Connection Set up /////
 ESP8266WiFiMulti wifiMulti;
@@ -18,22 +23,61 @@ int addressCount = 0;
 
 void setup()
 {
-  Serial.begin(115200);
+  Serial.begin(9600);
+
+  InitST7735();
+  PrintText("Set up ...");
+
+  InitBuzzer(BUZZER_PIN);
   
   AddWiFiAddress(wifi_ssid, wifi_password);
+  PrintText("Connecting WiFi.");
   ConnectWiFi(30);
 
-  if (WiFi.isConnected())
+  if (WiFi.isConnected()){
     InitNTPTimer();
+    PrintText("Init NTP Timer Done.");
+    delay(2000);
+  }
+
+  // For Testing
+  PrintText("Init Done");
 }
 
 void loop()
 {
-  PrintLocalTime();
-  Serial.println(GetUnixTime());
-  delay(10000);
-}
+  str = SerialToStringUntil('\n');
 
+  if (str != "") {
+    Serial.println(str);
+    // For Testing
+    PrintText(str);
+
+    if (str == "alarm_on")
+      StartBuzzerLoop(4, 500, 500);
+        
+    str = "";
+  }
+
+  delay(10000);
+
+  String message = String(GetYear());
+  message += ",";
+  message += String(GetMonth());
+  message += ",";
+  message += String(GetDay());
+  message += ",";
+  message += String(GetWeek());
+  message += ",";
+  message += String(GetHour() + TIME_ZONE);
+  message += ",";
+  message += String(GetMinutes());
+  message += ",";
+  message += String(GetSecond());
+
+  Serial.println(message);
+  PrintText(message);
+}
 
 void AddWiFiAddress(char* ssid, char* password)
 {
