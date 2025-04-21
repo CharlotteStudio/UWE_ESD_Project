@@ -8,7 +8,7 @@ extern void DisplayChar();
 extern void DisplayTime();
 extern void DisplayWeek();
 extern void StartDisplay();
-extern int  GetMonthEndDay();
+extern int  DaysInMonth();
 
 void Init();
 void ResetChrono();
@@ -35,6 +35,13 @@ void ShowStopwatch();
 
 void DisplayDay();
 void DisplayMonth();
+
+void InitURAT();
+void URAT_Send_String();
+void URAT_Send_Value();
+
+void SetUpTimeByTimestamp();
+void ParseString();
 
 /////+++++/////+++++///// Button /////+++++/////+++++/////
 
@@ -85,8 +92,8 @@ volatile unsigned int seconds       = 0;
 volatile unsigned int minutes       = 0;
 volatile unsigned int hours         = 0;
 volatile unsigned int week          = 1; // 1 ~ 7
-volatile unsigned int day           = 2;
-volatile unsigned int month         = 4;
+volatile unsigned int day           = 2; // 1 ~ 31
+volatile unsigned int month         = 4; // 1 ~ 12
 volatile         bool isLeapYear    = false;
 
 /////+++++/////+++++///// Display /////+++++/////+++++/////
@@ -96,14 +103,27 @@ volatile         bool isLeapYear    = false;
 #define MarkIcon    48
 #define lineIcon    49
 
+/////+++++/////+++++///// RxTx /////+++++/////+++++/////
+
+int adclist[100];
+volatile int adcpointer = 0;
+volatile int rPeakDetected = 0;  // Flag to indicate R-peak detection
+volatile unsigned int number;
+
+#define RX_BUFFER_SIZE 64
+volatile char         receivedBuffer[RX_BUFFER_SIZE];
+volatile unsigned int receivedIndex = 0;
+volatile bool         receivedEnd = false;
+
 int main(void)
 {
     Init();
+    InitURAT();
     SetUpButton();
 
 ////////////////////////////////////////////////////////////////////////////////////
 
-    TA0CCR0 =  1100;                // Count up to 1100, t = 1 / (1100/1.1MHz)
+    TA0CCR0 =  999;                // Count up to 999, t = 1 / (999 / 1MHz)
     TA0CCTL0 = 0x10;                // Enable counter interrupts, bit 4=1
     TA0CTL =  TASSEL_2 + MC_1;      // Timer A using subsystem master clock, SMCLK(1.1 MHz)
                                     // and count UP to create a 1ms interrupt
@@ -132,6 +152,9 @@ int main(void)
     P4OUT |= 0x08; // Enable LCD
 
     _BIS_SR(GIE);
+
+    char* message = "2025,4,21,7,15,50,10";
+    SetUpTimeByTimestamp(message);
 
     while (1) {
         CheckOnClickButtonStartStop();
@@ -182,6 +205,51 @@ __interrupt void Timer_A0_ISR(void)
         chrono_milliseconds++;
 }
 
+#pragma vector = ADC12_VECTOR
+__interrupt void ADC12ISR(void) {
+    if (ADC12IV == ADC12IV_ADC12IFG0) {
+        adclist[adcpointer] = ADC12MEM0;
+        if (adclist[adcpointer] > 3000) { // Check for R-peak
+            rPeakDetected = 1; // Set the flag
+        }
+        if (++adcpointer >= 100)
+            adcpointer = 0;
+    }
+}
+
+/* 在現有中斷向量下方添加 UART 接收中斷處理 */
+#pragma vector=USCI_A0_VECTOR
+__interrupt void USCI_A0_ISR(void)
+{
+    char temp[1];
+    switch(__even_in_range(UCA0IV, USCI_UART_UCTXCPTIFG))
+    {
+        case USCI_NONE:
+            break;
+
+        case USCI_UART_UCRXIFG:
+            temp[0] = UCA0RXBUF;
+
+            if (temp[0] == '\r')
+            {
+                receivedBuffer[receivedIndex] = '\0';
+                receivedEnd = true;
+                receivedIndex = 0;
+            } 
+            else
+            {
+                if (receivedIndex < RX_BUFFER_SIZE - 1)
+                    receivedBuffer[receivedIndex++] = temp[0];
+            }
+            break;
+
+        case USCI_UART_UCTXIFG:
+            break;
+
+        default: 
+            break;
+    }
+}
 
 void Init(){
     WDTCTL = WDTPW | WDTHOLD;   // stop watchdog timer
@@ -280,7 +348,7 @@ void OnClickSetTime(){
 
         case TimeSetting_Day:
             day++;
-            if (day > GetMonthEndDay(month))
+            if (day > DaysInMonth(month, 2025))
                 day = 1;
             break;
 
@@ -399,7 +467,7 @@ void UpdateNormalTimer(){
                     day++;
                     week++;
                     
-                    if (day > GetMonthEndDay(month, isLeapYear)){
+                    if (day > DaysInMonth(month, 2025)){
                         day = 1;
                         month++;
                         if (month > MonthMax)
@@ -670,4 +738,96 @@ void DisplayMonth(){
     else
         DisplayTime((month / 10), TimerMargin, 6);
     DisplayTime((month % 10), TimerMargin, 8);
+}
+
+void InitURAT(void) {
+    // Configure GPIO
+    P1OUT &= ~BIT0;                           // Clear P1.0 output latch
+    P1DIR |= BIT0;                            // For LED on P1.0
+    P2SEL1 |= BIT0 | BIT1;                    // Configure UART pins
+    P2SEL0 &= ~(BIT0 | BIT1);
+    PJSEL0 |= BIT4 | BIT5;                    // Configure XT1 pins
+
+    // Disable the GPIO power-on default high-impedance mode to activate
+    // previously configured port settings
+    PM5CTL0 &= ~LOCKLPM5;
+
+    // XT1 Setup
+    CSCTL0_H = CSKEY >> 8;                    // Unlock CS registers
+    CSCTL1 = DCOFSEL_0;                       // Set DCO to 1MHz
+    CSCTL2 = SELA__LFXTCLK | SELS__DCOCLK | SELM__DCOCLK;
+    CSCTL3 = DIVA__1 | DIVS__1 | DIVM__1;     // Set all dividers
+    CSCTL4 &= ~LFXTOFF;                       // Enable LFXT1
+
+    do {
+      CSCTL5 &= ~LFXTOFFG;                    // Clear XT1 fault flag
+      SFRIFG1 &= ~OFIFG;
+    } while (SFRIFG1&OFIFG);                   // Test oscillator fault flag
+    CSCTL0_H = 0;                             // Lock CS registers
+
+    // Configure USCI_A0 for UART mode
+    UCA0CTL1 |= UCSWRST;
+    UCA0CTL1 = UCSSEL__ACLK;                  // Set ACLK = 32768 as UCBRCLK
+    UCA0BR0 = 3;                              // 9600 baud
+    UCA0MCTLW |= 0x5300;                      // 32768/9600 - INT(32768/9600)=0.41
+                                              // UCBRSx value = 0x53 (See UG)
+    UCA0BR1 = 0;
+    UCA0CTL1 &= ~UCSWRST;                     // release from reset
+    UCA0IE |= UCRXIE;                         // Enable USCI_A0 RX interrupt
+}
+
+void URAT_Send_String(const char *str) {
+    while (*str != '\0') {
+        while (!(UCA0IFG & UCTXIFG));  // 等待發送緩衝區準備
+        UCA0TXBUF = *str++;            // 發送當前字符並移動指針
+    }
+}
+
+void URAT_Send_Value(int value) {
+    char buffer[10];
+    int i = 0;
+    int num = value;
+
+    // Convert number to string (reverse order)
+    do {
+        buffer[i++] = (num % 10) + '0';
+        num /= 10;
+    } while (num > 0);
+    
+    // Send characters in reverse (correct) order
+    while (i--) {
+        while (!(UCA0IFG & UCTXIFG));  // Wait for TX buffer
+        UCA0TXBUF = buffer[i];
+    }
+
+    // Send a newline or other delimiter if needed
+    while (!(UCA0IFG & UCTXIFG));
+    UCA0TXBUF = '\n';
+}
+
+void SetUpTimeByTimestamp(const char *message){
+    int timestampParts[7];
+    ParseString(message, timestampParts);
+    int year = timestampParts[0];
+    month = timestampParts[1];
+    day = timestampParts[2];
+    week = timestampParts[3];
+    hours = timestampParts[4];
+    minutes = timestampParts[5];
+    seconds = timestampParts[6];
+}
+
+void ParseString(const char *input, int *output) {
+    int value = 0;
+    int index = 0;
+    while (*input != '\0') {
+        if (*input == ',') {
+            output[index++] = value;
+            value = 0;
+        } else if (*input >= '0' && *input <= '9') {
+            value = value * 10 + (*input - '0');
+        }
+        input++;
+    }
+    output[index] = value;
 }
