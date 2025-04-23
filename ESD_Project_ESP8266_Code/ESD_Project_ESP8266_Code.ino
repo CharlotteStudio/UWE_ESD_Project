@@ -1,14 +1,19 @@
-#include "SerialRead_Header.h"
-
 // For Testing
 #include "ST7735_Header.h"
 #include "Buzzer_Header.h"
 
+#include <EEPROM.h>
 #include <ESP8266WiFi.h>
 #include <ESP8266WiFiMulti.h>
 #include "NTP_Timer.h"
+#include "StringFunction.h"
 
 ///// Other /////
+
+#define EEPROM_SIZE 2
+
+int alarm_hour = 0;
+int alarm_mins = 0;
 
 #define BUZZER_PIN 16 // D0
 
@@ -21,13 +26,6 @@ char wifi_ssid[]     = "Cabala";
 char wifi_password[] = "21424861";
 int addressCount = 0;
 
-// Command
-// 1 -> Set time
-// 2 -> On Off Auto update
-// 3 -> Set Alarm
-// 4 -> On/Off Alarm
-// 5 -> Start / Stop Buzzer
-
 void setup()
 {
   Serial.begin(9600);
@@ -37,8 +35,11 @@ void setup()
 
   InitBuzzer(BUZZER_PIN);
 
+  EEPROM.begin(EEPROM_SIZE);
+
   delay(2000);
-  Serial.println("3,20,30");
+
+  ReadEEPROMSave();
 
   AddWiFiAddress(wifi_ssid, wifi_password);
   PrintText("Connecting WiFi");
@@ -56,15 +57,13 @@ void setup()
 
 void loop()
 {
-  command = SerialToStringUntil('\n');
+  command = SerialToStringUntil('\n');  // Read the command from MSP430 RxTx 
 
   if (command != "") {
-    PrintText(command);
 
-    if (command == "alarm_on")
-      StartBuzzerLoop(4, 500, 500);
-        
-    command = "";
+    PrintText(command);
+    HandleCommand(command);             // Handle the different command
+    command = "";                       // clear the command
   }
 
   delay(10000);
@@ -86,6 +85,25 @@ void loop()
 
   Serial.println(message);
   PrintText(message);
+}
+
+void ReadEEPROMSave(){
+  alarm_hour = EEPROM.read(0);
+  alarm_mins = EEPROM.read(1);
+  if (alarm_hour == 0 && alarm_mins == 0) // If have not save, just send default alarm
+  {
+    Serial.println("3,20,30");
+    PrintText("3,20,30", 10, false);
+  }
+  else
+  {
+    String command = "3.";
+    command += String(alarm_hour);
+    command += ",";
+    command += String(alarm_mins);
+    Serial.println(command);
+    PrintText("command", 10, false);
+  }
 }
 
 void AddWiFiAddress(char* ssid, char* password)
@@ -126,5 +144,26 @@ void ConnectWiFi(float timeout)
   {
     Serial.println();
     Serial.println("Timeout, Fail Connection");
+  }
+}
+
+// Command
+// 1 -> Set time
+// 2 -> On Off Auto update
+// 3 -> Set Alarm
+// 4 -> On/Off Alarm
+// 5 -> Start / Stop Buzzer
+void HandleCommand(String command){
+  String* commands = SplitString(command, ',', 3);  // split the Command to [command][message][message]]
+  
+  switch(commands[0].toInt()){
+    case 3:                               // 3 -> Set Alarm
+      alarm_hour = commands[1].toInt();
+      alarm_mins = commands[2].toInt();
+      EEPROM.write(0, alarm_hour);
+      EEPROM.write(0, alarm_mins);
+      EEPROM.commit();                    // save to ROM
+      PrintText("Save Alarm Successful", 10, false);
+      break;
   }
 }
