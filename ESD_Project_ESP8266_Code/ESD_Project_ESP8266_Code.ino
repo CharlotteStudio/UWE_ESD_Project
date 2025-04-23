@@ -38,8 +38,8 @@ void setup()
   EEPROM.begin(EEPROM_SIZE);
 
   delay(2000);
-
   ReadEEPROMSave();
+  delay(2000);
 
   AddWiFiAddress(wifi_ssid, wifi_password);
   PrintText("Connecting WiFi");
@@ -93,16 +93,16 @@ void ReadEEPROMSave(){
   if (alarm_hour == 0 && alarm_mins == 0) // If have not save, just send default alarm
   {
     Serial.println("3,20,30");
-    PrintText("3,20,30", 10, false);
+    PrintText("3,20,30", 20, false);
   }
   else
   {
-    String command = "3.";
+    String command = "3,";
     command += String(alarm_hour);
     command += ",";
     command += String(alarm_mins);
     Serial.println(command);
-    PrintText("command", 10, false);
+    PrintText(command, 20, false);
   }
 }
 
@@ -161,9 +161,9 @@ void HandleCommand(String command){
       alarm_hour = commands[1].toInt();
       alarm_mins = commands[2].toInt();
       EEPROM.write(0, alarm_hour);
-      EEPROM.write(0, alarm_mins);
+      EEPROM.write(1, alarm_mins);
       EEPROM.commit();                    // save to ROM
-      PrintText("Save Alarm Successful", 10, false);
+      PrintText("Save Alarm Successful", 20, false);
       break;
   }
 }
