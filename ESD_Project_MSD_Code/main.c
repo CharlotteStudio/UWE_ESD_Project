@@ -1,5 +1,6 @@
 #include <msp430.h>
 #include <stdbool.h>
+#include <string.h>
 
 /////+++++/////+++++///// Function /////+++++/////+++++/////
 
@@ -9,6 +10,8 @@ extern void DisplayTime();
 extern void DisplayWeek();
 extern void StartDisplay();
 extern int  DaysInMonth();
+extern void ParseString();
+extern void CreateAlarmCommand();
 
 void Init();
 void ResetChrono();
@@ -39,11 +42,11 @@ void DisplayMonth();
 void InitURAT();
 void URAT_Send_String();
 void URAT_Send_Value();
+void SendAlarmSetting();
 void HandleURATCommand();
 
 void SetUpTimeByTimestamp();
 void SetUpAlarmByTimestamp();
-void ParseString();
 
 /////+++++/////+++++///// Button /////+++++/////+++++/////
 
@@ -110,7 +113,6 @@ volatile         bool isLeapYear    = false;
 int adclist[100];
 volatile int adcpointer = 0;
 volatile int rPeakDetected = 0;  // Flag to indicate R-peak detection
-volatile unsigned int number;
 
 #define RX_BUFFER_SIZE 64
 volatile char         receivedBuffer[RX_BUFFER_SIZE];
@@ -429,8 +431,10 @@ void CheckOnClickButtonMode(){
 void SwtichMode(){
     currentMode++;
 
-    if (currentMode > ChronoMode)
+    if (currentMode > ChronoMode){
         currentMode = NormalMode;
+        SendAlarmSetting();
+    }
     
     switch (currentMode) {
         case TimeSettingMode:
@@ -805,6 +809,12 @@ void URAT_Send_Value(int value) {
     UCA0TXBUF = '\n';
 }
 
+void SendAlarmSetting(){
+    char alarm_command[12];
+    CreateAlarmCommand(alarm_hours, alarm_minutes, alarm_command);
+    URAT_Send_String(alarm_command);
+}
+
 // Command
 // 1 -> Set time
 // 2 -> On Off Auto update
@@ -844,22 +854,4 @@ void SetUpTimeByTimestamp(int message[8]){
 void SetUpAlarmByTimestamp(int message[8]){
     alarm_hours   = message[1];
     alarm_minutes = message[2];
-}
-
-void ParseString(const char *input, int *output) {
-    int value = 0;
-    int index = 0;
-    while (*input != '\0')
-    {
-        if (*input == ',')
-        {
-            output[index++] = value;
-            value = 0;
-        } else if (*input >= '0' && *input <= '9')
-        {
-            value = value * 10 + (*input - '0');
-        }
-        input++;
-    }
-    output[index] = value;
 }

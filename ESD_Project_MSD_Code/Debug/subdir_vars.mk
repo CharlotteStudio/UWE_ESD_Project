@@ -11,31 +11,37 @@ CMD_SRCS += \
 C_SRCS += \
 ../Calendar.c \
 ../LCDHandler.c \
+../StringFunction.c \
 ../main.c 
 
 C_DEPS += \
 ./Calendar.d \
 ./LCDHandler.d \
+./StringFunction.d \
 ./main.d 
 
 OBJS += \
 ./Calendar.obj \
 ./LCDHandler.obj \
+./StringFunction.obj \
 ./main.obj 
 
 OBJS__QUOTED += \
 "Calendar.obj" \
 "LCDHandler.obj" \
+"StringFunction.obj" \
 "main.obj" 
 
 C_DEPS__QUOTED += \
 "Calendar.d" \
 "LCDHandler.d" \
+"StringFunction.d" \
 "main.d" 
 
 C_SRCS__QUOTED += \
 "../Calendar.c" \
 "../LCDHandler.c" \
+"../StringFunction.c" \
 "../main.c" 
 
 
