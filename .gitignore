@@ -55,3 +55,4 @@ ESD_Project_Unity/Library
 ESD_Project_Unity/Logs
 ESD_Project_Unity/Temp
 *.meta
+ESD_Project_Unity/Assets/google-services.json
