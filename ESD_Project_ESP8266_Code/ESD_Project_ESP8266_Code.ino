@@ -1,23 +1,23 @@
 // For Testing
 #include "ST7735_Header.h"
-#include "Buzzer_Header.h"
 
 #include <EEPROM.h>
 #include <ESP8266WiFi.h>
 #include <ESP8266WiFiMulti.h>
 #include "NTP_Timer.h"
 #include "StringFunction.h"
+#include "FirebaseFunction.h"
+#include "FirebaseKey.h"
+#include "Buzzer_Header.h"
 
-///// Other /////
+///// Pin  /////
+#define BUZZER_PIN 16 // D0
 
+///// Save Value /////
 #define EEPROM_SIZE 2
 
 int alarm_hour = 0;
 int alarm_mins = 0;
-
-#define BUZZER_PIN 16 // D0
-
-String command = "";
 
 ///// WiFi Connection Set up /////
 ESP8266WiFiMulti wifiMulti;
@@ -26,32 +26,44 @@ char wifi_ssid[]     = "Cabala";
 char wifi_password[] = "21424861";
 int addressCount = 0;
 
+///// Firebase setting /////
+
+#define AlarmSavePath "/MSP430_Project/Alarm_Setting"
+
+///// Other /////
+
+String command = "";
+
+unsigned long nextSendTime = 0;
+unsigned long nextSendTimeDuration = 20000; // 20 second send one time
+
 void setup()
 {
   Serial.begin(9600);
 
   InitST7735();
-  PrintText("Set up");
+  PrintText("Start Set up");
 
   InitBuzzer(BUZZER_PIN);
-
   EEPROM.begin(EEPROM_SIZE);
 
+  PrintText("Try Read EEPROM Save", 10, false);
   delay(2000);
   ReadEEPROMSave();
   delay(2000);
 
   AddWiFiAddress(wifi_ssid, wifi_password);
-  PrintText("Connecting WiFi");
   ConnectWiFi(30);
 
   if (WiFi.isConnected())
   {
     InitNTPTimer();
-    PrintText("Init NTP Timer Done");
-  } else{
-    // For Testing
-    PrintText("Init Done without Network");
+    PrintText("Init NTP Timer Done", 50, false);
+
+    PrintText("Connecting Firebase", 60, false);
+    LoginFirebase(API_KEY, DATABASE_URL, USER_EMAIL, USER_PASSWORD);
+
+    PrintText("Connect Firebase Successful.", 70, false);
   }
 }
 
@@ -66,25 +78,7 @@ void loop()
     command = "";                       // clear the command
   }
 
-  delay(10000);
-
-  String message = "1,";
-  message += String(GetYear());
-  message += ",";
-  message += String(GetMonth());
-  message += ",";
-  message += String(GetDay());
-  message += ",";
-  message += String(GetWeek());
-  message += ",";
-  message += String(GetHour() + TIME_ZONE);
-  message += ",";
-  message += String(GetMinutes());
-  message += ",";
-  message += String(GetSecond());
-
-  Serial.println(message);
-  PrintText(message);
+  SendoutTimestamp();
 }
 
 void ReadEEPROMSave(){
@@ -106,45 +100,34 @@ void ReadEEPROMSave(){
   }
 }
 
-void AddWiFiAddress(char* ssid, char* password)
-{
+void AddWiFiAddress(char* ssid, char* password){
   wifiMulti.addAP(ssid, password);
   addressCount++;
 }
 
-void ConnectWiFi(float timeout)
-{
-  if (addressCount == 0)
-  {
-    Serial.println("Haven't assigned any WiFi Address.");
-    return;
-  }
-
+void ConnectWiFi(float timeout){
+  if (addressCount == 0) return;
+  
   float currentTime = 0;
 
   wifiMulti.run();
 
-  Serial.print("Connecting Wifi");
+  String log = "Connecting WiFi";
+
+  PrintText(log, 30, false);
 
   while(!WiFi.isConnected() || currentTime < timeout)
   {
     delay(500);
     currentTime += 0.5f;
-    Serial.print(".");
+    log += ".";
+    PrintText(log, 30, false);
   }
 
   if (WiFi.isConnected())
-  {
-    /* Check the device IP Address */
-    Serial.println();
-    Serial.println("Connected, IP address: ");
-    Serial.println(WiFi.localIP());
-  }
+    PrintText("Done Connected", 40, false);
   else
-  {
-    Serial.println();
-    Serial.println("Timeout, Fail Connection");
-  }
+    PrintText("Fail Connect WiFi", 40, false);
 }
 
 // Command
@@ -164,6 +147,64 @@ void HandleCommand(String command){
       EEPROM.write(1, alarm_mins);
       EEPROM.commit();                    // save to ROM
       PrintText("Save Alarm Successful", 20, false);
+
+      if (WiFi.isConnected()){
+        String firebaseSave = commands[1];
+        firebaseSave += ",";
+        firebaseSave += commands[2];
+        SetStringToFirebase(AlarmSavePath, firebaseSave);
+      }
+
       break;
   }
 }
+
+void SendoutTimestamp(){
+  if (millis() > nextSendTime){
+    GetUnixTime();                  // update crrent time
+    String message = "1,";          // 1 -> Set time
+
+    message += String(GetYear());
+    message += ",";
+    message += String(GetMonth());
+    message += ",";
+    message += String(GetDay());
+    message += ",";
+    message += String(GetWeek());
+    message += ",";
+    message += String(GetHour() + TIME_ZONE);
+    message += ",";
+    message += String(GetMinutes());
+    message += ",";
+    message += String(GetSecond());
+
+    Serial.println(message);
+    PrintText(message);
+    nextSendTime = millis() + nextSendTimeDuration;
+  }
+}
+
+void SetStringToFirebase(String path, String s){
+  if (Firebase.setString(firebaseData, path ,s))
+    PrintText("Save Firebase Successful", 30, false);
+  else
+  {
+    PrintText("Save Firebase Fail", 30, false);
+    PrintText(firebaseData.errorReason().c_str(), 40, false);
+  }
+}
+
+/*
+String GetString(String path)
+{
+  Serial.printf("Get string : %s\n", Firebase.getString(firebaseData, path) ? String(firebaseData.stringData()).c_str() : firebaseData.errorReason().c_str());
+  
+  if(firebaseData.dataType() == "string")
+    return firebaseData.stringData();
+  else
+  {
+    printf("[%s] is not string type\n", path.c_str());
+    return "";
+  }
+}
+*/
