@@ -43,6 +43,7 @@ void InitURAT();
 void URAT_Send_String();
 void URAT_Send_Value();
 void SendAlarmSetting();
+void SendAlarmOnOff();
 void HandleURATCommand();
 
 void SetUpTimeByTimestamp();
@@ -100,6 +101,14 @@ volatile unsigned int week          = 1; // 1 ~ 7
 volatile unsigned int day           = 2; // 1 ~ 31
 volatile unsigned int month         = 4; // 1 ~ 12
 volatile         bool isLeapYear    = false;
+
+/////+++++/////+++++///// Alarm /////+++++/////+++++/////
+
+volatile bool onAlarm = false;
+#define AlarmCoolDownSecond 300
+volatile unsigned int alarmCoolDown = 0;
+#define AlarmOnSecond 60
+volatile unsigned int alarmOnTime = 0;
 
 /////+++++/////+++++///// Display /////+++++/////+++++/////
 
@@ -271,6 +280,9 @@ void Init(){
     isLeapYear    = false;
     alarm_hours   = 7;
     alarm_minutes = 30;
+    onAlarm       = false;
+    alarmOnTime   = 0;
+    alarmCoolDown = 0;
 }
 
 void ResetChrono(){
@@ -378,6 +390,12 @@ void OnClickSetAlarm(){
 }
 
 void CheckOnClickButtonLapReset(){
+    if (onAlarm){
+        SendAlarmOnOff(0);
+        onAlarm = false;
+        return;
+    }
+
     if ((P4IN & Button_LapReset) == 0)
     {
         if (!onClickButtonLapReset)
@@ -454,11 +472,30 @@ void UpdateNormalTimer(){
     {
         milliseconds = 0;
         seconds++;
-        
+        if (alarmCoolDown > 0)
+            alarmCoolDown--;
+
+        if (alarmOnTime > 0)
+            alarmOnTime--;
+
         if(seconds >= MinMax)
         {
             seconds = 0;
             minutes++;
+
+            // Alarm on 1 min
+            if (onAlarm && alarmOnTime == 0){
+                onAlarm = false;
+                SendAlarmOnOff(0);
+            }
+            
+            // Send Alarm on & Set Cool Down 300 second
+            if (minutes == alarm_minutes && hours == alarm_hours && !onAlarm && alarmCoolDown == 0){
+                onAlarm = true;
+                alarmOnTime = AlarmOnSecond;
+                alarmCoolDown = AlarmCoolDownSecond;
+                SendAlarmOnOff(1);
+            }
             
             if(minutes >= MinMax)
             {
@@ -815,6 +852,13 @@ void SendAlarmSetting(){
     URAT_Send_String(alarm_command);
 }
 
+void SendAlarmOnOff(int value){
+    if (value > 0)
+        URAT_Send_String("4,on,0");
+    else
+        URAT_Send_String("4,off,0");
+}
+
 // Command
 // 1 -> Set time
 // 2 -> On Off Auto update
@@ -831,7 +875,6 @@ void HandleURATCommand(){
             case 1:
                 SetUpTimeByTimestamp(messageParts);
                 break;
-
             case 3:
                 SetUpAlarmByTimestamp(messageParts);
                 break;

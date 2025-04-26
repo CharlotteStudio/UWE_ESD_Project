@@ -8,7 +8,7 @@
 #include "StringFunction.h"
 #include "FirebaseFunction.h"
 #include "FirebaseKey.h"
-#include "Buzzer_Header.h"
+#include "Buzzer.h"
 
 ///// Pin  /////
 #define BUZZER_PIN 16 // D0
@@ -34,12 +34,18 @@ int addressCount = 0;
 
 String command = "";
 
+bool onBuzzer = false;
+
 unsigned long nextSendTime = 0;
 unsigned long nextSendTimeDuration = 20000; // 20 second send one time
+
+unsigned long nextBuzzerOnTime = 0;
+unsigned long nextBuzzerOnTimeDuration = 4000; // 4 second start ont time
 
 void setup()
 {
   Serial.begin(9600);
+  onBuzzer = false;
 
   InitST7735();
   PrintText("Start Set up");
@@ -47,10 +53,10 @@ void setup()
   InitBuzzer(BUZZER_PIN);
   EEPROM.begin(EEPROM_SIZE);
 
+  delay(4000);
   PrintText("Try Read EEPROM Save", 10, false);
-  delay(2000);
   ReadEEPROMSave();
-  delay(2000);
+  delay(1000);
 
   AddWiFiAddress(wifi_ssid, wifi_password);
   ConnectWiFi(30);
@@ -63,20 +69,25 @@ void setup()
     PrintText("Connecting Firebase", 60, false);
     LoginFirebase(API_KEY, DATABASE_URL, USER_EMAIL, USER_PASSWORD);
 
-    PrintText("Connect Firebase Successful.", 70, false);
+    PrintText("Connected Firebase", 70, false);
   }
 }
 
 void loop()
 {
+  UpdateBuzzer();
+
   command = SerialToStringUntil('\n');  // Read the command from MSP430 RxTx 
 
-  if (command != "") {
-
+  if (command != "")
+  {
     PrintText(command);
     HandleCommand(command);             // Handle the different command
     command = "";                       // clear the command
   }
+
+  if (onBuzzer)
+    HandleBuzzer();
 
   SendoutTimestamp();
 }
@@ -113,13 +124,12 @@ void ConnectWiFi(float timeout){
   wifiMulti.run();
 
   String log = "Connecting WiFi";
-
   PrintText(log, 30, false);
 
   while(!WiFi.isConnected() || currentTime < timeout)
   {
-    delay(500);
-    currentTime += 0.5f;
+    delay(5000);
+    currentTime += 5.0f;
     log += ".";
     PrintText(log, 30, false);
   }
@@ -146,7 +156,7 @@ void HandleCommand(String command){
       EEPROM.write(0, alarm_hour);
       EEPROM.write(1, alarm_mins);
       EEPROM.commit();                    // save to ROM
-      PrintText("Save Alarm Successful", 20, false);
+      PrintText("Save Alarm Successful", 10, false);
 
       if (WiFi.isConnected()){
         String firebaseSave = commands[1];
@@ -156,6 +166,27 @@ void HandleCommand(String command){
       }
 
       break;
+    case 4:
+      if (commands[1] == "on")
+      {
+        onBuzzer = true;
+        PrintText("Buzzer On", 10, false);
+      }
+      else
+      {
+        onBuzzer = false;
+        PrintText("Buzzer Off", 10, false);
+        StopBuzzerLoop();
+      }
+      break;
+  }
+}
+
+void HandleBuzzer() {
+  if (millis() > nextBuzzerOnTime)
+  {
+    StartBuzzerLoop(8, 50, 50, 3);
+    nextBuzzerOnTime = millis() + nextBuzzerOnTimeDuration;
   }
 }
 
@@ -172,25 +203,26 @@ void SendoutTimestamp(){
     message += ",";
     message += String(GetWeek());
     message += ",";
-    message += String(GetHour() + TIME_ZONE);
+    message += String(GetHour());
     message += ",";
     message += String(GetMinutes());
     message += ",";
     message += String(GetSecond());
 
     Serial.println(message);
-    PrintText(message);
+    PrintText("                                             ", 80, false);
+    PrintText(message, 80, false);
     nextSendTime = millis() + nextSendTimeDuration;
   }
 }
 
 void SetStringToFirebase(String path, String s){
   if (Firebase.setString(firebaseData, path ,s))
-    PrintText("Save Firebase Successful", 30, false);
+    PrintText("Save Firebase Successful", 20, false);
   else
   {
-    PrintText("Save Firebase Fail", 30, false);
-    PrintText(firebaseData.errorReason().c_str(), 40, false);
+    PrintText("Save Firebase Fail", 20, false);
+    PrintText(firebaseData.errorReason().c_str(), 30, false);
   }
 }
 
