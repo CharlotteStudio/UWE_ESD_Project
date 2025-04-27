@@ -201,7 +201,13 @@ void SendoutTimestamp(){
     message += ",";
     message += String(GetDay());
     message += ",";
-    message += String(GetWeek());
+
+    // in MSP430 is 1 to 7 Mon to Sun, in timestamp 0 is Sun, so need force set to 7
+    if (GetWeek() == 0)
+      message += "7";
+    else
+      message += String(GetWeek());
+  
     message += ",";
     message += String(GetHour());
     message += ",";
