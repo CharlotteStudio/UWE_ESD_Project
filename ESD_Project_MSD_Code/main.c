@@ -138,7 +138,7 @@ int main(void)
 
     TA0CCR0 =  999;                // Count up to 999, t = 1 / (999 / 1MHz)
     TA0CCTL0 = 0x10;                // Enable counter interrupts, bit 4=1
-    TA0CTL =  TASSEL_2 + MC_1;      // Timer A using subsystem master clock, SMCLK(1.1 MHz)
+    TA0CTL =  TASSEL_2 + MC_1;      // Timer A using subsystem master clock, SMCLK(1 MHz)
                                     // and count UP to create a 1ms interrupt
 
     // LCD
@@ -216,19 +216,8 @@ __interrupt void Timer_A0_ISR(void)
         chrono_milliseconds++;
 }
 
-#pragma vector = ADC12_VECTOR
-__interrupt void ADC12ISR(void) {
-    if (ADC12IV == ADC12IV_ADC12IFG0) {
-        adclist[adcpointer] = ADC12MEM0;
-        if (adclist[adcpointer] > 3000) { // Check for R-peak
-            rPeakDetected = 1; // Set the flag
-        }
-        if (++adcpointer >= 100)
-            adcpointer = 0;
-    }
-}
 
-/* 在現有中斷向量下方添加 UART 接收中斷處理 */
+// for read the URAT
 #pragma vector=USCI_A0_VECTOR
 __interrupt void USCI_A0_ISR(void)
 {
