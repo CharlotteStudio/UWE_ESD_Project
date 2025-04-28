@@ -56,3 +56,6 @@ ESD_Project_Unity/Logs
 ESD_Project_Unity/Temp
 *.meta
 ESD_Project_Unity/Assets/google-services.json
+ESD_Project_Unity/obj/Debug
+ESD_Project_Unity/UserSettings
+ESD_Project_Unity/Assets/StreamingAssets/google-services-desktop.json

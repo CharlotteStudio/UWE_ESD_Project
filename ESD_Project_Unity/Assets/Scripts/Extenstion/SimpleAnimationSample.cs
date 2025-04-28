@@ -55,6 +55,29 @@ public class SimpleAnimationSample : SingletonBehaviour<SimpleAnimationSample>
     
     #endregion
     
+    public Coroutine AnimationFade(CanvasGroup canvasGroup, float startValue, float endValue, float duration)
+    {
+        return StartCoroutine(Fade());
+        IEnumerator Fade()
+        {
+            var currentTime = 0f;
+            canvasGroup.alpha = startValue;
+            
+            while (currentTime <= duration)
+            {
+                if (canvasGroup == null) yield break;
+                var time = currentTime / duration;
+                var value = Mathf.Lerp(startValue, endValue, time);
+                canvasGroup.alpha = value;
+
+                currentTime += Time.deltaTime;
+                yield return null;
+            }
+
+            canvasGroup.alpha = endValue;
+        }
+    }
+    
     public Coroutine AnimationEndAction(System.Action callback, float duration)
     {
         return StartCoroutine(EndAction());
