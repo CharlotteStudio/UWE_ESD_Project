@@ -1,6 +1,3 @@
-// For Testing
-#include "ST7735_Header.h"
-
 #include <EEPROM.h>
 #include <ESP8266WiFi.h>
 #include <ESP8266WiFiMulti.h>
@@ -9,6 +6,7 @@
 #include "FirebaseFunction.h"
 #include "FirebaseKey.h"
 #include "Buzzer.h"
+#include "ST7735.h"
 
 ///// Pin  /////
 #define BUZZER_PIN 16 // D0
@@ -28,7 +26,8 @@ int addressCount = 0;
 
 ///// Firebase setting /////
 
-#define AlarmSavePath "/MSP430_Project/Alarm_Setting"
+#define AlarmSavePath "/MSP430_Project/Alarm_Setting"   //
+#define TimeZonePath  "/MSP430_Project/TimeZone"        // TIME_ZONE
 
 ///// Other /////
 
@@ -63,13 +62,14 @@ void setup()
 
   if (WiFi.isConnected())
   {
-    InitNTPTimer();
-    PrintText("Init NTP Timer Done", 50, false);
-
-    PrintText("Connecting Firebase", 60, false);
+    PrintText("Connecting Firebase", 50, false);
     LoginFirebase(API_KEY, DATABASE_URL, USER_EMAIL, USER_PASSWORD);
+    PrintText("Connected Firebase", 60, false);
 
-    PrintText("Connected Firebase", 70, false);
+    UpdateSettingFromFirebase();
+
+    InitNTPTimer();
+    PrintText("Init NTP Timer Done", 70, false);
   }
 }
 
@@ -89,7 +89,12 @@ void loop()
   if (onBuzzer)
     HandleBuzzer();
 
-  SendoutTimestamp();
+  if (millis() > nextSendTime)
+  {
+    UpdateSettingFromFirebase();
+    SendoutTimestamp();
+    nextSendTime = millis() + nextSendTimeDuration;
+  }
 }
 
 void ReadEEPROMSave(){
@@ -191,34 +196,77 @@ void HandleBuzzer() {
 }
 
 void SendoutTimestamp(){
-  if (millis() > nextSendTime){
-    GetUnixTime();                  // update crrent time
-    String message = "1,";          // 1 -> Set time
+  GetUnixTime();                  // update crrent time
+  String message = "1,";          // 1 -> Set time
 
-    message += String(GetYear());
-    message += ",";
-    message += String(GetMonth());
-    message += ",";
-    message += String(GetDay());
-    message += ",";
+  message += String(GetYear());
+  message += ",";
+  message += String(GetMonth());
+  message += ",";
+  message += String(GetDay());
+  message += ",";
 
-    // in MSP430 is 1 to 7 Mon to Sun, in timestamp 0 is Sun, so need force set to 7
-    if (GetWeek() == 0)
-      message += "7";
-    else
-      message += String(GetWeek());
-  
-    message += ",";
-    message += String(GetHour());
-    message += ",";
-    message += String(GetMinutes());
-    message += ",";
-    message += String(GetSecond());
+  // in MSP430 is 1 to 7 Mon to Sun, in timestamp 0 is Sun, so need force set to 7
+  if (GetWeek() == 0)
+    message += "7";
+  else
+    message += String(GetWeek());
 
-    Serial.println(message);
-    PrintText("                                             ", 80, false);
-    PrintText(message, 80, false);
-    nextSendTime = millis() + nextSendTimeDuration;
+  message += ",";
+  message += String(GetHour());
+  message += ",";
+  message += String(GetMinutes());
+  message += ",";
+  message += String(GetSecond());
+
+  Serial.println(message);
+  ClearScreenFromPosition(100);
+  PrintText(message, 100, false);
+}
+
+void UpdateSettingFromFirebase(){
+  String alarmSetting = GetStringFromFirebase(AlarmSavePath);
+  String* alarmNumber = SplitString(alarmSetting, ',', 2);  // split the Command to [message][message]
+
+  int hour = alarmNumber[0].toInt();
+  int mins = alarmNumber[1].toInt();
+
+  // update new alarm setting
+  if (hour != alarm_hour || mins != alarm_mins){
+    alarm_hour = hour;
+    alarm_mins = mins;
+
+    // send out update MSP430
+    String command = "3,";
+    command += alarmSetting;
+    Serial.println(command);
+
+    // update local save
+    EEPROM.write(0, alarm_hour);
+    EEPROM.write(1, alarm_mins);
+    EEPROM.commit();
+
+    String log = "Update Alarm : ";
+    log += alarmSetting;
+    ClearScreenFromPosition(80);
+    PrintText(log, 80, false);
+  }
+
+  delay(1000);
+
+  // update time zone
+  String timeZone = GetStringFromFirebase(TimeZonePath);
+  if (timeZone != "")
+  {
+    int zone = timeZone.toInt();
+    if (zone != TIME_ZONE)
+    {
+      TIME_ZONE = zone;
+      InitNTPTimer();
+      timeZone = "Update Time zone to " + timeZone;
+      ClearScreenFromPosition(90);
+      PrintText(timeZone, 90, false);
+    }
   }
 }
 
@@ -232,17 +280,15 @@ void SetStringToFirebase(String path, String s){
   }
 }
 
-/*
-String GetString(String path)
+String GetStringFromFirebase(String path)
 {
-  Serial.printf("Get string : %s\n", Firebase.getString(firebaseData, path) ? String(firebaseData.stringData()).c_str() : firebaseData.errorReason().c_str());
-  
-  if(firebaseData.dataType() == "string")
+  Firebase.getString(firebaseData, path);
+    
+  if(firebaseData.dataType() == "string"){
     return firebaseData.stringData();
+  }
   else
   {
-    printf("[%s] is not string type\n", path.c_str());
     return "";
   }
 }
-*/

@@ -16,7 +16,7 @@
  #define NTP_Server  "pool.ntp.org"
  #define NIST_Server "time.nist.gov"
  
- const int8_t TIME_ZONE = 8;             // +8 HK
+ int8_t TIME_ZONE = 8;             // +8 HK
  const int    daylightOffset_sec = 0;
  
  struct tm timeinfo;
@@ -32,20 +32,15 @@
    while (now < nowish)
    {
      delay(500);
-     Serial.print(".");
      now = time(nullptr);
    }
-   Serial.println("done!");
  
    gmtime_r(&now, &timeinfo);
-   Serial.print("Current time: ");
-   Serial.print(asctime(&timeinfo));
  }
  
  unsigned long GetUnixTime() {
    if(!getLocalTime(&timeinfo))
    {
-     Serial.println("Failed to obtain time");
      return 0;
    }
    
