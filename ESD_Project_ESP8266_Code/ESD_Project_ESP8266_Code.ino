@@ -20,6 +20,8 @@ int alarm_mins = 0;
 ///// WiFi Connection Set up /////
 ESP8266WiFiMulti wifiMulti;
 
+char wifi_ssid_2[]     = "A33";
+char wifi_password_2[] = "12345678";
 char wifi_ssid[]     = "Cabala";
 char wifi_password[] = "21424861";
 int addressCount = 0;
@@ -57,6 +59,7 @@ void setup()
   ReadEEPROMSave();
   delay(1000);
 
+  AddWiFiAddress(wifi_ssid_2, wifi_password_2);
   AddWiFiAddress(wifi_ssid, wifi_password);
   ConnectWiFi(30);
 
