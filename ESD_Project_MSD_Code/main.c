@@ -5,6 +5,7 @@
 /////+++++/////+++++///// Function /////+++++/////+++++/////
 
 extern void ClearDisplay();
+extern void DisplayIcon();
 extern void DisplayChar();
 extern void DisplayTime();
 extern void DisplayWeek();
@@ -104,16 +105,21 @@ volatile         bool isLeapYear    = false;
 
 /////+++++/////+++++///// Alarm /////+++++/////+++++/////
 
-volatile bool onAlarm = false;
 #define AlarmCoolDownSecond 300
-volatile unsigned int alarmCoolDown = 0;
 #define AlarmOnSecond 60
+
+volatile bool activeAlarm = false;
+volatile bool onAlarm     = false;
+volatile unsigned int alarmCoolDown = 0;
 volatile unsigned int alarmOnTime = 0;
 
 /////+++++/////+++++///// Display /////+++++/////+++++/////
 
 #define Empty       2
-#define TimerMargin 10
+#define IconMargin  4
+#define AlarmMargin 8
+#define TimerMargin 24
+#define AlarmIcon   0
 #define MarkIcon    48
 #define lineIcon    49
 
@@ -136,7 +142,7 @@ int main(void)
 
 ////////////////////////////////////////////////////////////////////////////////////
 
-    TA0CCR0 =  999;                // Count up to 999, t = 1 / (999 / 1MHz)
+    TA0CCR0 =  999;                 // Count up to 999, t = 1 / (999 / 1MHz)
     TA0CCTL0 = 0x10;                // Enable counter interrupts, bit 4=1
     TA0CTL =  TASSEL_2 + MC_1;      // Timer A using subsystem master clock, SMCLK(1 MHz)
                                     // and count UP to create a 1ms interrupt
@@ -216,6 +222,17 @@ __interrupt void Timer_A0_ISR(void)
         chrono_milliseconds++;
 }
 
+#pragma vector = ADC12_VECTOR
+__interrupt void ADC12ISR(void) {
+    if (ADC12IV == ADC12IV_ADC12IFG0) {
+        adclist[adcpointer] = ADC12MEM0;
+        if (adclist[adcpointer] > 3000) { // Check for R-peak
+            rPeakDetected = 1; // Set the flag
+        }
+        if (++adcpointer >= 100)
+            adcpointer = 0;
+    }
+}
 
 // for read the URAT
 #pragma vector=USCI_A0_VECTOR
@@ -269,6 +286,7 @@ void Init(){
     isLeapYear    = false;
     alarm_hours   = 7;
     alarm_minutes = 30;
+    activeAlarm   = false;
     onAlarm       = false;
     alarmOnTime   = 0;
     alarmCoolDown = 0;
@@ -312,7 +330,10 @@ void CheckOnClickButtonStartStop(){
         if (onClickButtonStartStop)
         {
             onClickButtonStartStop = false;
-        
+
+            if (currentMode == NormalMode && onClickButtonLapReset)     // set Alarm on / off
+                activeAlarm = !activeAlarm;
+
             if (currentMode == TimeSettingMode)
                 OnClickSetTime();
 
@@ -456,6 +477,9 @@ void SwtichMode(){
     } 
 }
 
+
+int startAlarmSecond = 0;
+
 void UpdateNormalTimer(){
     if(milliseconds >= 1000)
     {
@@ -473,16 +497,18 @@ void UpdateNormalTimer(){
             minutes++;
 
             // Alarm on 1 min
-            if (onAlarm && alarmOnTime == 0){
+            if (onAlarm && alarmOnTime == 0 && seconds > startAlarmSecond + 2){
                 onAlarm = false;
+                startAlarmSecond = 0;
                 SendAlarmOnOff(0);
             }
-            
+
             // Send Alarm on & Set Cool Down 300 second
-            if (minutes == alarm_minutes && hours == alarm_hours && !onAlarm && alarmCoolDown == 0){
+            if (activeAlarm && minutes == alarm_minutes&& hours == alarm_hours && !onAlarm && alarmCoolDown == 0){
                 onAlarm = true;
                 alarmOnTime = AlarmOnSecond;
                 alarmCoolDown = AlarmCoolDownSecond;
+                startAlarmSecond = seconds;
                 SendAlarmOnOff(1);
             }
             
@@ -536,6 +562,9 @@ void UpdateStopwatchTimer(){
 void ShowTimer(){
     ClearDisplay();
 
+    if (activeAlarm)
+        DisplayIcon(AlarmIcon, IconMargin, AlarmMargin);
+
     DisplayTime((hours / 10), TimerMargin, 1);
     DisplayTime((hours % 10), TimerMargin, 3);
 
@@ -554,6 +583,9 @@ void ShowTimer(){
 void ShowCalender(){
     ClearDisplay();
 
+    if (activeAlarm)
+        DisplayIcon(AlarmIcon, IconMargin, AlarmMargin);
+
     DisplayDay();
 
     DisplayChar(lineIcon, TimerMargin, 5);
@@ -567,6 +599,8 @@ void ShowCalender(){
 
 void ShowAlarm(){
     ClearDisplay();
+
+    DisplayIcon(AlarmIcon, IconMargin, AlarmMargin);
 
     DisplayTime((alarm_hours / 10), TimerMargin, 1);
     DisplayTime((alarm_hours % 10), TimerMargin, 3);
@@ -692,6 +726,8 @@ void ShowSettingCalender(){
 
 void ShowSettingAlarm(){
     ClearDisplay();
+
+    DisplayIcon(AlarmIcon, IconMargin, AlarmMargin);
 
     if (currentTimeSetting == TimeSetting_Hour){
         if ((seconds % 2) == 0)
