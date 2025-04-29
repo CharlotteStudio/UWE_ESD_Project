@@ -103,6 +103,10 @@ volatile unsigned int day           = 2; // 1 ~ 31
 volatile unsigned int month         = 4; // 1 ~ 12
 volatile         bool isLeapYear    = false;
 
+/////+++++/////+++++///// Internet update /////+++++/////+++++/////
+
+volatile bool activeInternetUpdate = false;
+
 /////+++++/////+++++///// Alarm /////+++++/////+++++/////
 
 #define AlarmCoolDownSecond 300
@@ -115,13 +119,25 @@ volatile unsigned int alarmOnTime = 0;
 
 /////+++++/////+++++///// Display /////+++++/////+++++/////
 
-#define Empty       2
-#define IconMargin  4
-#define AlarmMargin 8
-#define TimerMargin 24
-#define AlarmIcon   0
-#define MarkIcon    48
-#define lineIcon    49
+// Font
+#define Empty        2
+#define IconMargin   4
+#define TimerMargin  24
+#define MarkIcon     48
+#define lineIcon     49
+
+// Icon
+#define WiFiMargin          0
+#define NormalTimerMargin   4
+#define ChronoMargin        6
+#define AlarmMargin         8
+#define CalenderMargin      11
+
+#define AlarmIcon    0
+#define ChronoIcon   2
+#define WiFiIcon     4
+#define TimerIcon    6
+#define CalenderIcon 8
 
 /////+++++/////+++++///// RxTx /////+++++/////+++++/////
 
@@ -286,6 +302,7 @@ void Init(){
     isLeapYear    = false;
     alarm_hours   = 7;
     alarm_minutes = 30;
+    activeInternetUpdate = false;
     activeAlarm   = false;
     onAlarm       = false;
     alarmOnTime   = 0;
@@ -330,6 +347,12 @@ void CheckOnClickButtonStartStop(){
         if (onClickButtonStartStop)
         {
             onClickButtonStartStop = false;
+
+            if (onAlarm){
+                SendAlarmOnOff(0);
+                onAlarm = false;
+                return;
+            }
 
             if (currentMode == NormalMode && onClickButtonLapReset)     // set Alarm on / off
                 activeAlarm = !activeAlarm;
@@ -400,12 +423,6 @@ void OnClickSetAlarm(){
 }
 
 void CheckOnClickButtonLapReset(){
-    if (onAlarm){
-        SendAlarmOnOff(0);
-        onAlarm = false;
-        return;
-    }
-
     if ((P4IN & Button_LapReset) == 0)
     {
         if (!onClickButtonLapReset)
@@ -416,7 +433,13 @@ void CheckOnClickButtonLapReset(){
         if (onClickButtonLapReset)
         {
             onClickButtonLapReset = false;
-            
+
+            if (onAlarm){
+                SendAlarmOnOff(0);
+                onAlarm = false;
+                return;
+            }
+
             if (currentMode == TimeSettingMode){
                 currentTimeSetting++;
                 if (currentTimeSetting > TimeSetting_Month)
@@ -451,6 +474,13 @@ void CheckOnClickButtonMode(){
         if (onClickButtonMode)
         {
             onClickButtonMode = false;
+
+            // set auto update on / off
+            if (currentMode == NormalMode && onClickButtonStartStop){
+                activeInternetUpdate = !activeInternetUpdate;
+                return;
+            }
+
             SwtichMode();
         }
     }
@@ -478,8 +508,6 @@ void SwtichMode(){
 }
 
 
-int startAlarmSecond = 0;
-
 void UpdateNormalTimer(){
     if(milliseconds >= 1000)
     {
@@ -497,9 +525,8 @@ void UpdateNormalTimer(){
             minutes++;
 
             // Alarm on 1 min
-            if (onAlarm && alarmOnTime == 0 && seconds > startAlarmSecond + 2){
+            if (onAlarm && alarmOnTime == 0){
                 onAlarm = false;
-                startAlarmSecond = 0;
                 SendAlarmOnOff(0);
             }
 
@@ -508,7 +535,6 @@ void UpdateNormalTimer(){
                 onAlarm = true;
                 alarmOnTime = AlarmOnSecond;
                 alarmCoolDown = AlarmCoolDownSecond;
-                startAlarmSecond = seconds;
                 SendAlarmOnOff(1);
             }
             
@@ -562,6 +588,13 @@ void UpdateStopwatchTimer(){
 void ShowTimer(){
     ClearDisplay();
 
+    if (activeInternetUpdate)
+        DisplayIcon(WiFiIcon,  IconMargin, WiFiMargin);
+
+    //DisplayIcon(ChronoIcon, IconMargin, ChronoMargin);
+    DisplayIcon(TimerIcon,  IconMargin, NormalTimerMargin);
+    //DisplayIcon(CalenderIcon, IconMargin, CalenderMargin);
+
     if (activeAlarm)
         DisplayIcon(AlarmIcon, IconMargin, AlarmMargin);
 
@@ -583,6 +616,11 @@ void ShowTimer(){
 void ShowCalender(){
     ClearDisplay();
 
+    if (activeInternetUpdate)
+        DisplayIcon(WiFiIcon,  IconMargin, WiFiMargin);
+
+    DisplayIcon(CalenderIcon,  IconMargin, CalenderMargin);
+
     if (activeAlarm)
         DisplayIcon(AlarmIcon, IconMargin, AlarmMargin);
 
@@ -599,6 +637,9 @@ void ShowCalender(){
 
 void ShowAlarm(){
     ClearDisplay();
+
+    if (activeInternetUpdate)
+        DisplayIcon(WiFiIcon,  IconMargin, WiFiMargin);
 
     DisplayIcon(AlarmIcon, IconMargin, AlarmMargin);
 
@@ -620,6 +661,8 @@ void ShowAlarm(){
 
 void ShowSettingTimer(){
     ClearDisplay();
+
+    DisplayIcon(TimerIcon,  IconMargin, NormalTimerMargin);
 
     if (currentTimeSetting == TimeSetting_Hour){
         if ((seconds % 2) == 0)
@@ -680,6 +723,8 @@ void ShowSettingTimer(){
 
 void ShowSettingCalender(){
     ClearDisplay();
+
+    DisplayIcon(CalenderIcon,  IconMargin, CalenderMargin);
 
     if (currentTimeSetting == TimeSetting_Day){
         if ((seconds % 2) == 0)
@@ -777,6 +822,9 @@ void ShowSettingAlarm(){
 
 void ShowStopwatch(){
     ClearDisplay();
+
+    DisplayIcon(ChronoIcon, IconMargin, ChronoMargin);
+
     DisplayTime((chrono_minutes / 10), TimerMargin, 1);
     DisplayTime((chrono_minutes % 10), TimerMargin, 3);
     DisplayTime((chrono_seconds / 10), TimerMargin, 6);
@@ -898,7 +946,8 @@ void HandleURATCommand(){
 
         switch (messageParts[0]) {
             case 1:
-                SetUpTimeByTimestamp(messageParts);
+                if (activeInternetUpdate)
+                    SetUpTimeByTimestamp(messageParts);
                 break;
             case 3:
                 SetUpAlarmByTimestamp(messageParts);
