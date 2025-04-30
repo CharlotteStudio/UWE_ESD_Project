@@ -149,6 +149,7 @@ volatile int rPeakDetected = 0;  // Flag to indicate R-peak detection
 volatile char         receivedBuffer[RX_BUFFER_SIZE];
 volatile unsigned int receivedIndex = 0;
 volatile bool         receivedEnd = false;
+volatile int          sendoutCoolDown = 0;
 
 int main(void)
 {
@@ -236,18 +237,6 @@ __interrupt void Timer_A0_ISR(void)
     milliseconds++;
     if (startStopWatch)
         chrono_milliseconds++;
-}
-
-#pragma vector = ADC12_VECTOR
-__interrupt void ADC12ISR(void) {
-    if (ADC12IV == ADC12IV_ADC12IFG0) {
-        adclist[adcpointer] = ADC12MEM0;
-        if (adclist[adcpointer] > 3000) { // Check for R-peak
-            rPeakDetected = 1; // Set the flag
-        }
-        if (++adcpointer >= 100)
-            adcpointer = 0;
-    }
 }
 
 // for read the URAT
@@ -519,19 +508,22 @@ void UpdateNormalTimer(){
         if (alarmOnTime > 0)
             alarmOnTime--;
 
+        if (sendoutCoolDown > 0)
+            sendoutCoolDown--;
+
         if(seconds >= MinMax)
         {
             seconds = 0;
             minutes++;
 
             // Alarm on 1 min
-            if (onAlarm && alarmOnTime == 0){
+            if (sendoutCoolDown == 0 && onAlarm && alarmOnTime == 0){
                 onAlarm = false;
                 SendAlarmOnOff(0);
             }
 
             // Send Alarm on & Set Cool Down 300 second
-            if (activeAlarm && minutes == alarm_minutes&& hours == alarm_hours && !onAlarm && alarmCoolDown == 0){
+            if (sendoutCoolDown == 0 && activeAlarm && minutes == alarm_minutes&& hours == alarm_hours && !onAlarm && alarmCoolDown == 0){
                 onAlarm = true;
                 alarmOnTime = AlarmOnSecond;
                 alarmCoolDown = AlarmCoolDownSecond;
@@ -920,12 +912,16 @@ void URAT_Send_Value(int value) {
 }
 
 void SendAlarmSetting(){
+    if (sendoutCoolDown > 0) return;
+    sendoutCoolDown = 2;
     char alarm_command[12];
     CreateAlarmCommand(alarm_hours, alarm_minutes, alarm_command);
     URAT_Send_String(alarm_command);
 }
 
 void SendAlarmOnOff(int value){
+    if (sendoutCoolDown > 0) return;
+    sendoutCoolDown = 2;
     if (value > 0)
         URAT_Send_String("4,on,0");
     else
