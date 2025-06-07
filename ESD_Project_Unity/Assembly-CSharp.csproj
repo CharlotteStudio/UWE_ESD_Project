@@ -44,11 +44,11 @@
     <Compile Include="Assets\Scripts\UIManager.cs" />
     <Compile Include="Assets\Scripts\UI\SimpleButton.cs" />
     <Compile Include="Assets\Scripts\Extenstion\ExtensionUnityAnimation.cs" />
+    <Compile Include="Assets\Scripts\RealtimeDatabaseManager.cs" />
     <Compile Include="Assets\Scripts\UI\ButtonBase.cs" />
+    <Compile Include="Assets\Scripts\AuthenticationManager.cs" />
     <Compile Include="Assets\Scripts\Extenstion\SingletonBehaviour.cs" />
     <Compile Include="Assets\Scripts\Extenstion\SimpleAnimationSample.cs" />
-    <Compile Include="Assets\Scripts\AuthenticationManager.cs" />
-    <Compile Include="Assets\Scripts\RealtimeDatabaseManager.cs" />
     <Compile Include="Assets\Scripts\UI\PopupDialog.cs" />
     <None Include="Assets\TextMesh Pro\Shaders\TMPro.cginc" />
     <None Include="Assets\TextMesh Pro\Shaders\TMP_SDF-Mobile Overlay.shader" />
